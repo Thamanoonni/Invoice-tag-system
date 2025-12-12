@@ -513,13 +513,13 @@
                         
                             <!-- NEW: Ship Qty Input Container -->
                             <div id="ship_qty_input_container" class="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-2 hidden">
-                                <label for="input_ship_qty" class="w-40 font-bold text-gray-700">Ship Qty:</label>
+                                <label for="input_ship_qty" class="w-40 font-bold text-gray-700">Invoice Qty:</label>
                                 <input type="number" id="input_ship_qty" data-next="btn-confirm-qty" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition">
                                 <button id="btn-confirm-qty" class="btn-base btn-primary flex-shrink-0" onclick="confirmShipQty()">Confirm</button>
                             </div>
                             <!-- NEW: Ship Qty Display Container -->
                             <div id="ship_qty_display_container" class="flex flex-col sm:flex-row mb-2 hidden">
-                                <label class="w-40 font-bold text-gray-700">Ship Qty:</label>
+                                <label class="w-40 font-bold text-gray-700">Invoice Qty:</label>
                                 <p id="display_ship_qty" class="w-full text-black font-normal"></p>
                             </div>
                         </div>
@@ -2066,5 +2066,4 @@
 
     </script>
 </body>
-
 </html>

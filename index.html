@@ -465,7 +465,7 @@
                             <!-- V36 CHANGE: Dynamic Stock# Field -->
                             <div class="flex flex-col sm:flex-row mb-2">
                                 <!-- ID for conditional caption change -->
-                                <label id="label_stock_no" class="w-40 font-bold text-gray-700">Stock#:</label>
+                                <label id="label_stock_no" class="w-40 font-bold text-gray-700">MATERIAL:</label>
                                 <!-- Container for dynamic content (P or INPUT) -->
                                 <div id="stock_no_container" class="w-full text-black font-normal">
                                     <!-- Initial placeholder content -->
@@ -513,13 +513,13 @@
                         
                             <!-- NEW: Ship Qty Input Container -->
                             <div id="ship_qty_input_container" class="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-2 hidden">
-                                <label for="input_ship_qty" class="w-40 font-bold text-gray-700">invoice Qty:</label>
+                                <label for="input_ship_qty" class="w-40 font-bold text-gray-700">Ship Qty:</label>
                                 <input type="number" id="input_ship_qty" data-next="btn-confirm-qty" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition">
                                 <button id="btn-confirm-qty" class="btn-base btn-primary flex-shrink-0" onclick="confirmShipQty()">Confirm</button>
                             </div>
                             <!-- NEW: Ship Qty Display Container -->
                             <div id="ship_qty_display_container" class="flex flex-col sm:flex-row mb-2 hidden">
-                                <label class="w-40 font-bold text-gray-700">invoice Qty:</label>
+                                <label class="w-40 font-bold text-gray-700">Ship Qty:</label>
                                 <p id="display_ship_qty" class="w-full text-black font-normal"></p>
                             </div>
                         </div>
@@ -649,7 +649,7 @@
 
         // V36: Global state for conditional captions
         let currentCaptions = {
-            stock_no: "Stock#:",
+            stock_no: "MATERIAL:",
             coil_no: "COIL No.:"
         };
         
@@ -967,7 +967,7 @@
                 document.getElementById('tag-count').textContent = '0';
                 
                 // V36: Reset dynamic UI elements and captions
-                document.getElementById('label_stock_no').textContent = 'Stock#:';
+                document.getElementById('label_stock_no').textContent = 'MATERIAL:';
                 document.getElementById('label_coil_no').textContent = 'COIL No.:';
                 document.getElementById('stock_no_container').innerHTML = '<p id="stock_no" class="text-black font-normal"></p>';
 
@@ -1018,7 +1018,7 @@
 
             if (poType === 'PAINTING') {
                 currentCaptions.stock_no = "Production:";
-                currentCaptions.coil_no = "CODE No:";
+                currentCaptions.coil_no = "CODE No.:";
             } else if (poType === 'PART') {
                 currentCaptions.stock_no = "Spec Material:";
             }
@@ -1599,7 +1599,23 @@
                     tag_no: `${index + 1}/${tagDetails.length}`,
                 };
 
-                // Create the tag HTML structure
+                // Prepare data specifically for QR Code (Only requested fields)
+                const qrData = {
+                    Company: tagData.company,
+                    rev_info: tagData.rev_info,
+                    vendor_code: tagData.vendor_code,
+                    po_no: tagData.po_number,
+                    packing_list: tagData.packing_list,
+                    coil_no: tagData.coil_no,
+                    inv_no: tagData.inv_no,
+                    inv_date: tagData.inv_date,
+                    lot_no: tagData.lot_no,
+                    inv_qty: tagData.inv_qty,
+                    tag_no: tagData.tag_no,
+                    stock_no: tagData.stock_no // Add this
+                };
+
+                // Create the tag HTML structure (Visual tag still uses full data if needed, though hidden)
                 const tagHtml = createTagHtml(tagData);
                 
                 // Wrap in a div for print grid layout
@@ -1609,9 +1625,8 @@
                 
                 currentPageWrapper.appendChild(tagWrapper); // Append to current page wrapper
 
-                // Need to use setTimeout to ensure the HTML element is in the DOM before running QR Code
-                // Pass the index as the unique ID
-                setTimeout(() => generateQRCode(tagData, `qrcode-canvas-${index}`), 0);
+                // Use qrData for QR generation
+                setTimeout(() => generateQRCode(qrData, `qrcode-canvas-${index}`), 0);
             });
             
             // Open print dialog
@@ -1645,7 +1660,7 @@
                             <span class="detail-caption">MAKER CODE:</span>
                             <span class="detail-value">${data.vendor_code}</span>
                             
-                            <!-- Row 2: VENDOR NAME -->
+                            <!-- Row 2: VENDOR NAME (SHOW IN PRINT, BUT NOT IN QR) -->
                             <span class="detail-caption">MAKER:</span>
                             <span class="detail-value">${data.vendor_name}</span>
                             
@@ -1657,7 +1672,7 @@
                             <span class="detail-caption">${data.caption_stock_no}:</span>
                             <span class="detail-value">${data.stock_no}</span>
                             
-                            <!-- Row 5: UOM (Plain Black) -->
+                            <!-- Row 5: UOM (Plain Black) (SHOW IN PRINT, BUT NOT IN QR) -->
                             <!--<span class="detail-caption">UOM:</span>
                             <span class="detail-value">${data.uom}</span> -->
                             
@@ -1693,9 +1708,9 @@
                             <span class="detail-caption">INV DATE:</span>
                             <span class="detail-value">${data.inv_date}</span>
                             
-                            <!-- Row 14: INV QTY (Plain Black) -->
+                            <!-- Row 14: INV QTY (Plain Black) - UOM displayed here too -->
                             <span class="detail-caption">จำนวน:</span>
-                            <span class="detail-value">${data.inv_qty.toLocaleString()}  ${data.uom}</span>
+                            <span class="detail-value">${data.inv_qty.toLocaleString()} ${data.uom}</span>
                             
                         </div>
                         <!-- detail-right is changed to use padding for centering -->

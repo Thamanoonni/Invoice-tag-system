@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบพิมพ์ Invoice TAG - บริษัท วิสดอม ออโต้พาร์ท จำกัด</title>
+    <title>ระบบพิมพ์ Invoice TAG - บริษัท ทดสอบ จำกัด</title>
     <!-- Google Fonts - Kanit -->
     <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <!-- Tailwind CSS CDN -->
@@ -406,7 +406,7 @@
         <div class="max-w-7xl mx-auto flex justify-between items-center">
             <div class="text-2xl font-bold">
                 <!-- V16 FIX: Swapping colors again to highlight the Company name as requested -->
-                <span class="text-[var(--primary)]">บริษัท วิสดอม ออโต้พาร์ท จำกัด</span> | <span class="text-gray-600">Invoice TAG System</span>
+                <span class="text-[var(--primary)]">บริษัท ทดสอบ จำกัด</span> | <span class="text-gray-600">Invoice TAG System</span>
             </div>
             <div id="header-buttons" class="flex space-x-3">
                 <button id="btn-import-po" class="btn-base btn-primary" onclick="showFileImport()">
@@ -883,7 +883,7 @@
         /** ประมวลผลข้อมูลที่ Import และอัปเดต UI (V36: เพิ่ม po_type check) */
         function processImportData(data) {
             // 1. Basic validation for required fields
-            if (!data.po_qty || !data.po_number || !data.Company || !data.encode) {
+            if (!data.po_qty  || !data.po_number || !data.Company || !data.encode) {
                  hideLoading();
                  showAlert('Data Format Error', 'ข้อมูล PO ไม่สมบูรณ์: ขาด Po Qty, Std Pack, PO Number, Company หรือ **Encode** field');
                  return;
@@ -1612,7 +1612,8 @@
                     lot_no: tagData.lot_no,
                     inv_qty: tagData.inv_qty,
                     tag_no: tagData.tag_no,
-                    stock_no: tagData.stock_no // Add this
+                    stock_no: tagData.stock_no, // Added this field
+                    ship_qty: tagData.ship_qty // Added this field
                 };
 
                 // Create the tag HTML structure (Visual tag still uses full data if needed, though hidden)

@@ -513,13 +513,13 @@
                         
                             <!-- NEW: Ship Qty Input Container -->
                             <div id="ship_qty_input_container" class="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-2 hidden">
-                                <label for="input_ship_qty" class="w-40 font-bold text-gray-700">Ship Qty:</label>
+                                <label for="input_ship_qty" class="w-40 font-bold text-gray-700">Invoice Qty:</label>
                                 <input type="number" id="input_ship_qty" data-next="btn-confirm-qty" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition">
                                 <button id="btn-confirm-qty" class="btn-base btn-primary flex-shrink-0" onclick="confirmShipQty()">Confirm</button>
                             </div>
                             <!-- NEW: Ship Qty Display Container -->
                             <div id="ship_qty_display_container" class="flex flex-col sm:flex-row mb-2 hidden">
-                                <label class="w-40 font-bold text-gray-700">Ship Qty:</label>
+                                <label class="w-40 font-bold text-gray-700">Invoice Qty:</label>
                                 <p id="display_ship_qty" class="w-full text-black font-normal"></p>
                             </div>
                         </div>
@@ -1014,7 +1014,7 @@
             
             // 1. Update Conditional Captions (Frontend)
             currentCaptions.stock_no = "MATERIAL:";
-            currentCaptions.coil_no = "COIL No.:";
+            currentCaptions.coil_no = "COIL No.";
 
             if (poType === 'PAINTING') {
                 currentCaptions.stock_no = "Production:";
@@ -1900,6 +1900,7 @@
                     if (!row) continue;
 
                     // Col B (Index 1) is Lot, Col C (Index 2) is Coil
+                    // NEW: Col D (Index 3) is Invoice Qty
                     const lotVal = String(row[1] || '').trim().toUpperCase();
                     
                     // Stop if we hit an empty Lot number (assuming end of list)
@@ -1913,9 +1914,16 @@
 
                     const coilVal = String(row[2] || '').trim().toUpperCase();
                     
+                    // Parse Qty column (if exists, usually index 3/Col D)
+                    let rowQty = 0;
+                    if (row[3]) {
+                        rowQty = parseInt(String(row[3]).replace(/,/g, '')) || 0;
+                    }
+                    
                     excelLots.push({
                         lot: lotVal,
-                        coil: coilVal
+                        coil: coilVal,
+                        qty: rowQty
                     });
                 }
             } else {
@@ -1932,63 +1940,111 @@
                 // Get Current Std Pack
                 // Use a temporary variable for calculation, DO NOT change importedData.std_pack yet
                 let tempStdPack = importedData.std_pack || 0;
+                let calculatedShipQty = 0;
                 
-                // LOGIC UPDATE: If Std Pack is 0, use excelInvoiceQty for calculation ONLY
-                // We keep importedData.std_pack as 0 so UI displays '-'
+                // --- Validation Logic ---
+                
+                // A. Check Invoice Qty Total Match (if Header Qty exists)
+                const sumExcelLotQty = excelLots.reduce((acc, item) => acc + item.qty, 0);
+                
+                if (excelInvoiceQty > 0 && sumExcelLotQty !== excelInvoiceQty) {
+                     hideLoading();
+                     showAlert('Import Error', `ยอดรวม Invoice Qty ในรายการ (${sumExcelLotQty.toLocaleString()}) ไม่ตรงกับยอดรวมที่หัวกระดาษ (${excelInvoiceQty.toLocaleString()})`);
+                     return; // Stop import
+                }
+
+                // B. Check Remainder Lot Count (Only 1 allowed)
+                // Use tempStdPack for checking if not 0
+                if (tempStdPack > 0) {
+                    let remainderCount = 0;
+                    excelLots.forEach(item => {
+                        if (item.qty !== tempStdPack) {
+                            remainderCount++;
+                        }
+                    });
+
+                    if (remainderCount > 1) {
+                         hideLoading();
+                         showAlert('Import Error', `พบรายการที่เป็นเศษ (จำนวนไม่เท่ากับ Std Pack) มากกว่า 1 รายการ (${remainderCount} รายการ) กรุณาตรวจสอบไฟล์ Excel`);
+                         return; // Stop import
+                    }
+                }
+                
+                // --- Logic Update for StdPack=0 ---
+                // If Std Pack is 0, use excelInvoiceQty (Header) for calculation ONLY if present
                 if (tempStdPack === 0 && excelInvoiceQty > 0) {
                     tempStdPack = excelInvoiceQty;
                 }
 
-                // Calculate Total Qty to ship
-                if (tempStdPack > 0) {
-                    let calculatedShipQty = 0;
-                    
-                    // If Invoice Qty found in Excel, use it as Ship Qty (Per user request)
-                    // Otherwise fall back to calculated
-                    if (excelInvoiceQty > 0) {
-                        calculatedShipQty = excelInvoiceQty;
-                    } else {
-                        // Logic: Ship Qty = (Number of Lots) * (Std Pack)
-                        calculatedShipQty = excelLots.length * tempStdPack;
-                    }
-                    
+                // Calculate Total Ship Qty
+                if (excelInvoiceQty > 0) {
+                    calculatedShipQty = excelInvoiceQty;
+                } else if (sumExcelLotQty > 0) {
+                    // Fallback: If no header qty but we have row quantities, use sum
+                    calculatedShipQty = sumExcelLotQty;
+                } else if (tempStdPack > 0) {
+                    // Fallback (Original Logic): Ship Qty = (Number of Lots) * (Std Pack)
+                    // Used if user didn't fill Qty column
+                    calculatedShipQty = excelLots.length * tempStdPack;
+                }
+
+                if (calculatedShipQty > 0) {
                     // Set Ship Qty Input
                     document.getElementById('input_ship_qty').value = calculatedShipQty;
                     
-                    // Trigger Confirm Logic to generate the rows in UI
-                    // Pass tempStdPack as an override argument to confirmShipQty
-                    confirmShipQty(tempStdPack);
+                    // --- Construct tagDetails DIRECTLY from Excel Data ---
+                    // Instead of calling confirmShipQty (which re-calculates/re-sorts), 
+                    // we build the state manually to preserve Excel order and values.
                     
-                    // 4. FILL GENERATED ROWS with Excel Data
-                    // Use setTimeout to ensure DOM is updated after confirmShipQty logic runs
-                    setTimeout(() => {
-                        tagDetails.forEach((tag, idx) => {
-                            if (idx < excelLots.length) {
-                                // Update State
-                                tag.lot_no = excelLots[idx].lot;
-                                tag.coil_no = excelLots[idx].coil;
-                                
-                                // Update UI Input Fields
-                                // FIX: Item 1 has a special ID 'first-lot-input'
-                                let targetLotId = `lot_no_${tag.item_no}`;
-                                if (tag.item_no === 1) targetLotId = 'first-lot-input';
+                    tagDetails = excelLots.map((row, index) => ({
+                        item_no: index + 1,
+                        lot_no: row.lot,
+                        coil_no: row.coil,
+                        invoice_qty: row.qty > 0 ? row.qty : tempStdPack, // Use row qty if present, else std pack
+                        is_editable: false, // Excel import is fixed structure
+                        max_qty: tempStdPack
+                    }));
+                    
+                    // Set confirmed state
+                    confirmedShipQty = calculatedShipQty;
+                    
+                    // Update UI
+                    document.getElementById('ship_qty_input_container').classList.add('hidden');
+                    document.getElementById('display_ship_qty').textContent = confirmedShipQty.toLocaleString();
+                    document.getElementById('ship_qty_display_container').classList.remove('hidden');
 
-                                const lotInput = document.getElementById(targetLotId);
-                                if (lotInput) lotInput.value = excelLots[idx].lot;
-                                
-                                const coilInput = document.getElementById(`coil_no_${tag.item_no}`);
-                                if (coilInput) coilInput.value = excelLots[idx].coil;
-                            }
+                    document.getElementById('detail-table-container').classList.remove('hidden');
+                    
+                    // Render Table
+                    renderDetailTable();
+                    updateFooter();
+
+                    // Fill Input Fields in Table
+                    setTimeout(() => {
+                        tagDetails.forEach((tag) => {
+                            // FIX: Item 1 has a special ID 'first-lot-input'
+                            let targetLotId = `lot_no_${tag.item_no}`;
+                            if (tag.item_no === 1) targetLotId = 'first-lot-input';
+
+                            const lotInput = document.getElementById(targetLotId);
+                            if (lotInput) lotInput.value = tag.lot_no;
+                            
+                            const coilInput = document.getElementById(`coil_no_${tag.item_no}`);
+                            if (coilInput) coilInput.value = tag.coil_no;
+                            
+                            // Also ensure Qty input is updated (if rendered as input)
+                            const qtyInput = document.getElementById(`inv_qty_${tag.item_no}`);
+                            if (qtyInput) qtyInput.value = tag.invoice_qty;
                         });
                         
-                        // Re-check readiness after filling data
                         checkPrintReadiness();
-                    }, 50); // Small delay to let rendering finish
-                    
+                    }, 50);
+
                     showAlert('Import Success', `นำเข้าข้อมูลจาก Excel สำเร็จ: ${excelLots.length} รายการ`, null, 'success');
                 } else {
-                    showAlert('Warning', 'Std Pack เป็น 0 และไม่พบ INVOICE QTY ในไฟล์ Excel จึงไม่สามารถคำนวณอัตโนมัติได้ กรุณากรอกเอง');
+                    showAlert('Warning', 'ไม่สามารถคำนวณยอด Ship Qty ได้ (Std Pack=0 และไม่มีข้อมูล Invoice Qty)');
                 }
+
             } else {
                  if (startDataRowIndex === -1) {
                      showAlert('Import Warning', 'ไม่พบหัวตาราง "LOT#" ในไฟล์ Excel กรุณาตรวจสอบรูปแบบไฟล์');

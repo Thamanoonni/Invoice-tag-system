@@ -884,7 +884,7 @@
         /** ประมวลผลข้อมูลที่ Import และอัปเดต UI (V36: เพิ่ม po_type check) */
         function processImportData(data) {
             // 1. Basic validation for required fields
-            if (!data.po_qty || !data.std_pack || !data.po_number || !data.Company || !data.encode) {
+            if (!data.po_qty || !data.po_number || !data.Company || !data.encode) {
                  hideLoading();
                  showAlert('Data Format Error', 'ข้อมูล PO ไม่สมบูรณ์: ขาด Po Qty, Std Pack, PO Number, Company หรือ **Encode** field');
                  return;
@@ -892,7 +892,7 @@
             
             // 2. V17 Security Check: Decode and Compare PO Number
             const encodedPo = data.encode.trim();
-            const originalPo = data.po_number.trim();
+            const originalPo = data.po_number.trim() + data.po_qty ;
             let decodedPo = '';
 
             try {
@@ -1018,7 +1018,16 @@
             currentCaptions.stock_no = "MATERIAL:";
             currentCaptions.coil_no = "COIL No.:";
             currentCaptions.packing_list = "Packing List:"; // Default
-
+            
+            if (poType === 'PAINTING') {
+                currentCaptions.stock_no = "Production:";
+                currentCaptions.coil_no = "COIL_NO. MAT:4."; // NEW Caption
+                currentCaptions.packing_list = "LOT# MAT:"; // NEW Caption
+            } else if (poType === 'PART') {
+                currentCaptions.stock_no = "Spec Material:";
+            }
+            
+            /*
             if (poType === 'PAINTING') {
                 currentCaptions.stock_no = "Production:";
                 currentCaptions.coil_no = "COIL_NO. MAT:4."; // NEW Caption
@@ -1029,6 +1038,7 @@
             } else if (poType === 'PART_BUY') {
                 currentCaptions.stock_no = "Spec Material:";
             }
+             */ 
             
             // Update the display labels
             document.getElementById('label_stock_no').textContent = currentCaptions.stock_no;
@@ -1049,8 +1059,9 @@
 
             // NEW: Set conditional COIL NO flag
             // FIX: Explicitly treat anything that is NOT 'PART' or 'PART_BUY' as Per-Lot (including PIPE and PAINTING)
-            isPerLotCoilNo = !(poType === 'PART' || poType === 'PART_BUY');
-
+            //isPerLotCoilNo = !(poType === 'PART' || poType === 'PART_BUY');
+            isPerLotCoilNo = !(poType === 'PAINTING' || poType === 'PAINTING');
+            
             // NEW: Show/Hide COIL NO sections
             const headerCoilContainer = document.getElementById('header_coil_no_container');
             const tableCoilHeader = document.getElementById('th-coil-no');

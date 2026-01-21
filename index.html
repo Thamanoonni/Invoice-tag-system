@@ -1021,7 +1021,7 @@
             
             if (poType === 'PAINTING') {
                 currentCaptions.stock_no = "Production:";
-                currentCaptions.coil_no = "COIL_NO. MAT:4."; // NEW Caption
+                currentCaptions.coil_no = "COIL NO. MAT:"; // NEW Caption
                 currentCaptions.packing_list = "LOT# MAT:"; // NEW Caption
             } else if (poType === 'PART') {
                 currentCaptions.stock_no = "Spec Material:";
@@ -1061,7 +1061,7 @@
             // FIX: Explicitly treat anything that is NOT 'PART' or 'PART_BUY' as Per-Lot (including PIPE and PAINTING)
             //isPerLotCoilNo = !(poType === 'PART' || poType === 'PART_BUY');
             isPerLotCoilNo = !(poType === 'PAINTING' || poType === 'PAINTING');
-            
+
             // NEW: Show/Hide COIL NO sections
             const headerCoilContainer = document.getElementById('header_coil_no_container');
             const tableCoilHeader = document.getElementById('th-coil-no');
@@ -1887,12 +1887,12 @@
                     }
                 } else if (colA.includes('SPEC MATERIAL') || colA.includes('PRODUCTION')) {
                     excelStockNo = colB.toUpperCase();
-                } else if (colA.includes('PACKING LIST')) {
+                } else if (colA.includes('PACKING LIST') || colA.includes('LOT#')) {
                     excelPacking = colB.toUpperCase();
                 } else if (colA.includes('INVOICE QTY')) { // NEW: Search for Invoice Qty
                     // Remove commas if present and parse
                     excelInvoiceQty = parseInt(colB.replace(/,/g, '')) || 0;
-                } else if (colA.includes('CODE NO') || colA.includes('JPR CODE')) { // NEW: Search for Code No
+                } else if (colA.includes('COIL NO') || colA.includes('JPR CODE')) { // NEW: Search for Code No
                     excelCodeNo = colB.toUpperCase();
                 }
                 

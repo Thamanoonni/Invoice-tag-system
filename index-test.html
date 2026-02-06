@@ -892,7 +892,7 @@
             
             // 2. V17 Security Check: Decode and Compare PO Number
             const encodedPo = data.encode.trim();
-            const originalPo = data.po_number.trim();
+            const originalPo = data.po_number.trim() + data.po_qty ;
             let decodedPo = '';
 
             try {

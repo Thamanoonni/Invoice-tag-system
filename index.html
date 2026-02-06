@@ -543,7 +543,7 @@
                                     <th class="p-3 text-left text-sm font-semibold uppercase tracking-wider">Lot#</th>
                                     <!-- NEW: Conditional COIL No. Header (hidden by default) -->
                                     <th id="th-coil-no" class="p-3 text-left text-sm font-semibold uppercase tracking-wider hidden">COIL No.</th>
-                                    <th class="w-36 p-3 text-right text-sm font-semibold uppercase tracking-wider rounded-tr-lg">Lot Qty</th>
+                                    <th class="w-36 p-3 text-right text-sm font-semibold uppercase tracking-wider rounded-tr-lg">Invoice Qty</th>
                                 </tr>
                             </thead>
                             <!-- V24 FIX: REMOVE bg-white from tbody to allow CSS :nth-child to work -->
@@ -884,6 +884,7 @@
         /** ประมวลผลข้อมูลที่ Import และอัปเดต UI (V36: เพิ่ม po_type check) */
         function processImportData(data) {
             // 1. Basic validation for required fields
+            // FIX: Allow std_pack to be 0 (check undefined instead of falsy)
             if (!data.po_qty || !data.po_number || !data.Company || !data.encode) {
                  hideLoading();
                  showAlert('Data Format Error', 'ข้อมูล PO ไม่สมบูรณ์: ขาด Po Qty, Std Pack, PO Number, Company หรือ **Encode** field');
@@ -959,7 +960,12 @@
                     const el = document.getElementById(id);
                     el.value = (el.type === 'date') ? '' : '';
                 });
-                document.getElementById('input_coil_no').value = ''; // NEW (clear header one)
+                // RESET Coil No Input State (Important for PAINTING reset)
+                const coilInput = document.getElementById('input_coil_no');
+                coilInput.value = ''; 
+                coilInput.disabled = false;
+                coilInput.classList.remove('bg-gray-100', 'cursor-not-allowed');
+
                 document.getElementById('input_ship_qty').value = ''; // NEW
 
                 // Clear all display fields
@@ -1018,27 +1024,14 @@
             currentCaptions.stock_no = "MATERIAL:";
             currentCaptions.coil_no = "COIL No.:";
             currentCaptions.packing_list = "Packing List:"; // Default
-            
             if (poType === 'PAINTING') {
                 currentCaptions.stock_no = "Production:";
-                currentCaptions.coil_no = "COIL NO. MAT:"; // NEW Caption
-                currentCaptions.packing_list = "LOT# MAT:"; // NEW Caption
+                currentCaptions.coil_no = "COIL/LOT NO.:"; // NEW Caption
+                //currentCaptions.packing_list = "LOT# MAT:"; 
             } else if (poType === 'PART') {
                 currentCaptions.stock_no = "Spec Material:";
             }
             
-            /*
-            if (poType === 'PAINTING') {
-                currentCaptions.stock_no = "Production:";
-                currentCaptions.coil_no = "COIL_NO. MAT:4."; // NEW Caption
-                currentCaptions.packing_list = "LOT# MAT:"; // NEW Caption
-            } else if (poType === 'PART') {
-                currentCaptions.stock_no = "Production:";
-                currentCaptions.coil_no = "JPR CODE:";
-            } else if (poType === 'PART_BUY') {
-                currentCaptions.stock_no = "Spec Material:";
-            }
-             */ 
             
             // Update the display labels
             document.getElementById('label_stock_no').textContent = currentCaptions.stock_no;
@@ -1058,40 +1051,20 @@
             packingInput.placeholder = `กรอก ${packingCaption}`;
 
             // NEW: Set conditional COIL NO flag
-            // FIX: Explicitly treat anything that is NOT 'PART' or 'PART_BUY' as Per-Lot (including PIPE and PAINTING)
-            //isPerLotCoilNo = !(poType === 'PART' || poType === 'PART_BUY');
-            isPerLotCoilNo = !(poType === 'PAINTING' || poType === 'PAINTING');
+            // FIX: Include PAINTING as a type that uses HEADER Coil No (not Per-Lot)
+            isPerLotCoilNo = !(poType === 'PAINTING');
 
             // NEW: Show/Hide COIL NO sections
             const headerCoilContainer = document.getElementById('header_coil_no_container');
             const tableCoilHeader = document.getElementById('th-coil-no');
             const packingListInput = document.getElementById('input_packing_list');
             
-            if (isPerLotCoilNo) {
-                // Case: PIPE, PAINTING, OTHER -> Show in Table, Hide Header
-                headerCoilContainer.classList.add('hidden');
-                tableCoilHeader.classList.remove('hidden');
-                packingListInput.dataset.next = 'input_ship_qty'; // Skip header coil_no
-                
-                // Clear header input to prevent validation error
-                coilInput.value = ''; 
-            } else {
-                // Case: PART, PART_BUY -> Show in Header, Hide Table
-                headerCoilContainer.classList.remove('hidden');
-                tableCoilHeader.classList.add('hidden');
-                packingListInput.dataset.next = 'input_coil_no'; // Point to header coil_no
-                // Ensure header coil_no points to ship_qty
-                coilInput.dataset.next = 'input_ship_qty';
-            }
-
-
             // 2. Handle Dynamic Stock# Input
             const stockNoContainer = document.getElementById('stock_no_container');
             stockNoContainer.innerHTML = ''; // Clear previous content
             
-            const rawStockNo = (importedData.stock_no || '').trim();
+            let rawStockNo = (importedData.stock_no || '').trim();
             isStockNoInput = (rawStockNo === '');
-            const defaultNextFocus = 'input_invoice_number'; // Next focus if stock_no is read-only
 
             if (isStockNoInput) {
                 // If stock_no is blank, show input field
@@ -1104,7 +1077,8 @@
                 stockInput.value = ''; 
                 // V36: Uppercase and data tracking
                 stockInput.oninput = function() { this.value = this.value.toUpperCase(); checkPrintReadiness(); };
-                stockInput.dataset.next = defaultNextFocus; 
+                // Default next focus (unless changed below)
+                stockInput.dataset.next = 'input_invoice_number'; 
                 stockNoContainer.appendChild(stockInput);
                 
                 // Focus on this field (First in sequence)
@@ -1119,7 +1093,7 @@
                 stockNoContainer.appendChild(stockP);
                 
                 // Default focus to invoice number if stock_no is read-only
-                document.getElementById(defaultNextFocus).focus();
+                document.getElementById('input_invoice_number').focus();
             }
             
             // 3. Update Header Display (Read-Only)
@@ -1152,9 +1126,44 @@
             // 6. Update Footer (to show initial PO Qty)
             updateFooter();
             
-            // 7. Handle focus (already done by stock_no logic or default)
-            // Focus logic inside updateUI will set focus to stock_no or invoice_no
-            // data-next attributes in HTML will handle flow to input_ship_qty
+            // 7. Configure Coil/Lot visibility and value (MOVED TO END to ensure DOM is ready and order is correct)
+            if (isPerLotCoilNo) {
+                // Case: PIPE, OTHER -> Show in Table, Hide Header
+                headerCoilContainer.classList.add('hidden');
+                tableCoilHeader.classList.remove('hidden');
+                packingListInput.dataset.next = 'input_ship_qty'; // Skip header coil_no
+                
+                // Clear header input to prevent validation error
+                coilInput.value = ''; 
+            } else {
+                // Case: PART, PART_BUY, PAINTING -> Show in Header, Hide Table
+                headerCoilContainer.classList.remove('hidden');
+                tableCoilHeader.classList.add('hidden');
+                packingListInput.dataset.next = 'input_coil_no'; // Point to header coil_no
+                // Ensure header coil_no points to ship_qty
+                coilInput.dataset.next = 'input_ship_qty';
+
+                if (poType === 'PAINTING') {
+                    // Try to find coil_lot value robustly (case-insensitive fallback)
+                    let coilLotValue = '';
+                    if (importedData.coil_lot) {
+                        coilLotValue = importedData.coil_lot;
+                    } else {
+                        // Fallback search case-insensitive
+                        const key = Object.keys(importedData).find(k => k.toLowerCase() === 'coil_lot');
+                        if (key) coilLotValue = importedData[key];
+                    }
+                    
+                    coilInput.value = (coilLotValue || '').trim();
+                    coilInput.disabled = true;
+                    coilInput.classList.add('bg-gray-100', 'cursor-not-allowed'); // Gray out
+                } else {
+                    // Clear if NOT Painting
+                    coilInput.value = '';
+                    coilInput.disabled = false;
+                    coilInput.classList.remove('bg-gray-100', 'cursor-not-allowed');
+                }
+            }
         }
 
         /** สร้างแถว Detail Table */
@@ -1887,12 +1896,12 @@
                     }
                 } else if (colA.includes('SPEC MATERIAL') || colA.includes('PRODUCTION')) {
                     excelStockNo = colB.toUpperCase();
-                } else if (colA.includes('PACKING LIST') || colA.includes('LOT#')) {
+                } else if (colA.includes('PACKING LIST')) {
                     excelPacking = colB.toUpperCase();
                 } else if (colA.includes('INVOICE QTY')) { // NEW: Search for Invoice Qty
                     // Remove commas if present and parse
                     excelInvoiceQty = parseInt(colB.replace(/,/g, '')) || 0;
-                } else if (colA.includes('COIL NO') || colA.includes('JPR CODE')) { // NEW: Search for Code No
+                } else if (colA.includes('CODE NO') || colA.includes('JPR CODE')) { // NEW: Search for Code No
                     excelCodeNo = colB.toUpperCase();
                 }
                 

@@ -1,0 +1,2180 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบพิมพ์ Invoice TAG - บริษัท วิสดอม ออโต้พาร์ท จำกัด</title>
+    <!-- Google Fonts - Kanit -->
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- QR Code Library CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    <!-- SheetJS Library for Excel Import -->
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+
+    <style>
+        /* ---------------------------------------------------------------------- */
+        /* General Styles */
+        /* ---------------------------------------------------------------------- */
+        :root {
+            --primary: #1E88E5; /* Blue 600/700: Main brand color */
+            --secondary: #90CAF9; /* Light Blue 300: Accent/Ring color */
+            --warning: #FFCA28; /* Yellow: Keep for warnings */
+            --danger: #EF5350; /* Red: Keep for danger/error */
+            --accent: #42A5F5; /* Blue 400: Highlight color */
+            --success: #66BB6A; /* Green: For Excel Import */
+        }
+        body {
+            font-family: 'Kanit', sans-serif;
+            background-color: #f4f7f6;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; 
+        }
+        /* Style for custom scrollbar (optional but improves look) */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+
+        /* Custom Styles for Fixed Header/Footer */
+        #top-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 50;
+        }
+        #bottom-footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 50;
+        }
+        
+        /* Lock the Table Header (thead) */
+        #detail-table thead {
+            position: sticky;
+            top: 0; 
+            z-index: 20; 
+        }
+        #detail-table thead th {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        /* ---------------------------------------------------------------------- */
+        /* Zebra Stripe and Hover Colors (Applied to TD) */
+        /* ---------------------------------------------------------------------- */
+        
+        /* 1. Apply Zebra Stripe Colors to TD based on parent TR position */
+        table#detail-table tbody#detail-table-body tr:nth-child(even) > td {
+            background-color: #e0f2fe; /* Blue-100 */
+        }
+        table#detail-table tbody#detail-table-body tr:nth-child(odd) > td {
+            background-color: #ffffff; /* White for odd rows */
+        }
+        
+        /* 2. Apply Hover Color to TD inside the hovered TR */
+        table#detail-table tbody#detail-table-body tr:hover > td {
+            background-color: #a7d0f3 !important; /* Slightly darker Blue for hover */
+            cursor: pointer;
+            transition: background-color 0.15s ease-in-out;
+        }
+
+        /* ---------------------------------------------------------------------- */
+        /* V34 FIX: Input Transparency and Focus Overhaul (Retained from V35) */
+        /* ---------------------------------------------------------------------- */
+        
+        /* Step 1: Default Input Styling (The Weakest Rule) */
+        #detail-table-body input {
+            box-sizing: border-box; 
+            width: 100%; 
+            height: 100%;
+            
+            border: none !important;
+            box-shadow: none !important;
+            outline: none;
+            
+            padding: 0.5rem 0.5rem; 
+            
+            background-color: transparent; 
+        }
+        
+        /* Step 2: The Final Specificity Stand for Focus (Must Win) */
+        table#detail-table tbody#detail-table-body tr td input:focus {
+            background-color: #fef9c3 !important; /* Light Yellow Highlight (yellow-100) */
+            
+            box-shadow: 0 0 0 2px var(--primary);
+            
+            color: #1f2937 !important; 
+        }
+        
+        /* V36 FIX: Input field when stock_no is blank (Header Input) */
+        #stock_no_container input.stock-input-field:focus {
+             background-color: #fef9c3; /* Light Yellow Highlight (yellow-100) */
+        }
+        /* End of V34 Fixes */
+
+        
+        /* Custom Button Style */
+        .btn-base {
+            padding: 0.5rem 1rem; 
+            font-weight: 600; 
+            border-radius: 1rem; 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1); 
+            transition: all 0.15s ease-in-out; 
+            outline: none; 
+        }
+        .btn-base:hover {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); 
+        }
+        .btn-base:focus {
+            outline: none;
+            box-shadow: 0 0 0 4px rgba(107, 114, 128, 0.3); 
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #1a74c7; /* Darker blue on hover */
+        }
+        .btn-primary:focus {
+            box-shadow: 0 0 0 4px rgba(30, 136, 229, 0.5); 
+        }
+
+        .btn-success {
+            background-color: var(--success);
+            color: white;
+        }
+        .btn-success:hover {
+            background-color: #43a047; 
+        }
+        .btn-success:focus {
+            box-shadow: 0 0 0 4px rgba(102, 187, 106, 0.5); 
+        }
+
+        .btn-danger {
+            background-color: var(--danger);
+            color: white;
+        }
+        .btn-danger:hover {
+            background-color: #d54949; 
+        }
+        .btn-danger:focus {
+             box-shadow: 0 0 0 4px rgba(239, 83, 80, 0.5); 
+        }
+
+        .btn-warning {
+            background-color: var(--warning);
+            color: #1f2937; 
+        }
+        .btn-warning:hover {
+            background-color: #e6b825; 
+        }
+        .btn-warning:focus {
+            box-shadow: 0 0 0 4px rgba(255, 202, 40, 0.5); 
+        }
+        /* End of Custom Button Fix */
+
+        /* Loading Spinner Animation */
+        .spinner {
+            border-top-color: var(--primary);
+            -webkit-animation: spin 1s ease-in-out infinite;
+            animation: spin 1s ease-in-out infinite;
+        }
+        @-webkit-keyframes spin {
+            to { -webkit-transform: rotate(360deg); }
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* เพิ่มเส้นแบ่งระหว่าง Column ของตาราง */
+        #detail-table th, 
+        #detail-table td {
+            border-right: 1px solid #e5e7eb; /* สีเทา (Gray-200) */
+        }
+        
+        /* ลบเส้นขอบขวาสุดออก เพื่อไม่ให้ซ้อนกับขอบตาราง */
+        #detail-table th:last-child, 
+        #detail-table td:last-child {
+            border-right: none;
+        }
+
+        /* ---------------------------------------------------------------------- */
+        /* Universal QR Code Styling: Force Square Shape and Screen Size */
+        /* ---------------------------------------------------------------------- */
+        .qrcode-canvas {
+            min-width: 100px !important;
+            min-height: 100px !important;
+            aspect-ratio: 1 / 1 !important; 
+            width: 100px !important; 
+            height: 100px !important;
+            max-width: 100%;
+            max-height: 100%;
+            display: block;
+            margin: 0 auto;
+            box-sizing: content-box; 
+            flex-shrink: 0 !important; 
+        }
+
+        /* ---------------------------------------------------------------------- */
+        /* PRINT STYLES for Tags (A4 Landscape, 4 tags per page) */
+        /* ---------------------------------------------------------------------- */
+        @media print {
+            /* 1. Set A4 size and margins */
+            @page {
+                size: A4 landscape; /* Suggest Landscape orientation (297mm x 210mm) */
+                margin: 5mm; /* Reduce margin to maximize space */
+            }
+
+            body > *:not(#print-area) {
+                display: none !important;
+            }
+            #print-area {
+                display: block;
+                /* Usable width (297 - 10 = 287mm) */
+                width: 287mm; 
+                margin: 0;
+                padding: 0;
+                font-family: 'Kanit', sans-serif;
+                /* V35 FIX: Adjusted overall font size for print */
+                font-size: 11pt; 
+            }
+            
+            /* 2. Page Container: Holds exactly 4 tags and forces page break */
+            .print-page-wrapper {
+                width: 287mm; /* Full printable width */
+                height: 200mm; /* Usable height (210 - 10 = 200mm) */
+                
+                display: flex;
+                flex-wrap: wrap; /* Allows 2x2 wrapping */
+                /* MODIFIED: Use space-between to align odd items left and maximize gap */
+                justify-content: space-between; 
+                align-content: space-between; 
+                
+                page-break-after: always; /* Force new page */
+                box-sizing: border-box;
+                padding: 5mm; /* Inner padding for overall container */
+            }
+            /* The last page should not break */
+            .print-page-wrapper:last-child {
+                page-break-after: avoid;
+            }
+
+            /* 3. Individual Tag Size (REDUCED SIZE FOR GAP) */
+            .tag-page {
+                /* MODIFIED: Reduced size to create a larger gap between tags */
+                width: 130mm; 
+                height: 90mm;  
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+                page-break-inside: avoid;
+            }
+            
+            .tag-container {
+                border: 1px solid #000;
+                height: 100%;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+                overflow: hidden; 
+                position: relative; /* MODIFIED: Set to relative to allow absolute positioning inside */
+            }
+            
+            /* V14 CHANGE: Increase header font size (14pt) */
+            .tag-header {
+                text-align: center;
+                border-bottom: 2px solid #000;
+                padding: 2px 0;
+                font-size: 14pt; /* INCREASED FONT SIZE for Company Name */
+                font-weight: 700;
+            }
+            
+            /* Main detail section */
+            .tag-detail {
+                flex-grow: 1;
+                display: grid;
+                grid-template-columns: 2fr 1fr;
+            }
+
+            /* V10 FIX: Caption Column Width set to 20mm */
+            .detail-left {
+                /* Change from block layout to a grid layout */
+                display: grid;
+                /* Define two columns: fixed width for caption, remaining for value */
+                grid-template-columns: 24mm 1fr; /* Increased to 24mm to fit "COIL_NO. MAT:4." */
+                grid-gap: 1mm 3mm; /* Row gap, Column gap */
+                padding: 3mm 5mm; 
+                /* V35 FIX: Increased font size for overall detail section */
+                font-size: 14pt; 
+                line-height: 1.1; 
+            }
+
+            /* V35 FIX: Set font size for specific elements to match or slightly exceed the base 9pt */
+            .detail-caption {
+                text-align: right; /* CRITICAL: Right align the caption text */
+                font-weight: 700; /* BOLD */
+                color: #000; /* BLACK */
+                font-size: 9pt; /* V35 FIX: Explicitly set font size */
+            }
+            
+            /* V35 FIX: Set font size for specific elements to match or slightly exceed the base 9pt */
+            .detail-value {
+                text-align: left; /* Keep value text left aligned */
+                font-weight: 400; /* NORMAL */
+                color: #000; /* BLACK */
+                font-size: 9pt; /* V35 FIX: Explicitly set font size */
+            }
+            
+            /* V10 FIX: Adjusted padding to push QR code away from the right edge */
+            .detail-right { 
+                /* Removed text-align: right to rely on flex center alignment */
+                display: flex; 
+                flex-direction: column;
+                justify-content: center; /* Center content vertically */
+                align-items: center;
+                padding-top: 2mm; 
+                padding-left: 2mm; /* Push away from the center divider */
+                padding-right: 5mm; /* CRITICAL: Push away from the right edge of the Tag */
+                box-sizing: border-box; /* Include padding in element's total width/height */
+            }
+
+            /* V14 CHANGE: Reduced QR Code Size to 40mm */
+            .qrcode-canvas {
+                /* Explicit dimensions (Reduced size) */
+                width: 40mm !important; 
+                height: 40mm !important;
+                
+                /* CRITICAL: Prevent squishing (Reduced size) */
+                min-width: 40mm !important; 
+                min-height: 40mm !important; 
+
+                /* Final enforcement of 1:1 ratio */
+                aspect-ratio: 1 / 1 !important; 
+            }
+            
+            .detail-right p {
+                font-size: 9pt; /* V35 FIX: Increased font size */
+                margin: 0;
+                /* Add margin top to separate text from QR */
+                margin-top: 2mm; 
+                font-weight: normal; /* V13: Ensure normal weight */
+                color: #000; /* V13: Ensure black color */
+            }
+            /* V13: Ensure the inner labels are also normal and black */
+            .detail-right p strong {
+                font-weight: normal; 
+            }
+
+            /* NEW STYLE: For Print Date above QR Code */
+            .print-date-style {
+                position: absolute; /* Changed to absolute positioning */
+                top: 12mm; /* Move date higher up (approx 12mm from top edge, below header) */
+                right: 5mm; /* Align with right padding */
+                text-align: right;
+                font-size: 20pt; /* Large font size */
+                font-weight: bold; /* Bold text */
+                color: #000;
+                line-height: 1;
+                z-index: 10;
+            }
+
+            .tag-footer {
+                display: flex;
+                justify-content: space-between;
+                /* V35 FIX: Increased font size */
+                font-size: 8pt; 
+                padding: 2px 5mm;
+                border-top: 1px solid #ccc;
+                color: #000; /* V13: Ensure black color */
+            }
+        }
+
+    </style>
+</head>
+<body class="antialiased">
+
+    <!-- 1. ส่วนที่ 1: Header (Fixed Top) -->
+    <header id="top-header" class="bg-white shadow-lg p-3">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div class="text-2xl font-bold">
+                <!-- V16 FIX: Swapping colors again to highlight the Company name as requested -->
+                <span class="text-[var(--primary)]">บริษัท วิสดอม ออโต้พาร์ท จำกัด</span> | <span class="text-gray-600">Invoice TAG System</span>
+            </div>
+            <div id="header-buttons" class="flex space-x-3">
+                <button id="btn-import-po" class="btn-base btn-primary" onclick="showFileImport()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline mr-1" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L6.914 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd" /></svg>
+                    Import PO
+                </button>
+                
+                <!-- NEW: Excel Import Button -->
+                <button id="btn-import-excel" class="btn-base btn-success hidden" onclick="triggerExcelImport()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline mr-1" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm0 6a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2zm0 6a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2z" clip-rule="evenodd" />
+                    </svg>
+                    Import Excel
+                </button>
+                <!-- Hidden file input for Excel -->
+                <input type="file" id="excel-file-selector" accept=".xlsx, .xls" class="hidden" onchange="handleExcelFile(event)">
+
+                <button id="btn-print-tag" class="btn-base btn-warning hidden" onclick="validateAndPrint()" disabled>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline mr-1" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 4v2a2 2 0 002 2h6a2 2 0 002-2V4h1a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2h1zM5 6h10v2a1 1 0 01-1 1H6a1 1 0 01-1-1V6zm10 8H5v-2h10v2z" clip-rule="evenodd" /></svg>
+                    Print Tag (F10)
+                </button>
+                <button id="btn-clear-data" class="btn-base btn-danger hidden" onclick="showClearConfirm()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline mr-1" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.728-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 10-2 0v6a1 1 0 102 0V8z" clip-rule="evenodd" /></svg>
+                    Clear Data
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container (Now takes up the space between fixed header/footer) -->
+    <main id="main-content-area" class="max-w-7xl mx-auto w-full px-4 h-full" style="padding-top: 4.5rem; padding-bottom: 3.5rem;">
+
+        <!-- Wrapper to ensure content takes full height -->
+        <div id="content-layout" class="h-full flex flex-col">
+            <!-- Welcome message remains, adjusted for vertical centering when visible -->
+            <h1 id="welcome-message" class="text-3xl font-light text-gray-500 text-center flex-grow flex items-center justify-center">
+                กรุณากดปุ่ม "Import PO" เพื่อเริ่มการทำงาน
+            </h1>
+
+            <!-- 2. ส่วนที่ 2: Header และ Detail (Hidden by default) -->
+            <section id="data-view" class="hidden flex-grow flex flex-col h-full">
+                
+                <!-- ส่วน Header (PO/Invoice Data Card) - Fixed Height -->
+                <div id="header-data-card" class="bg-white shadow-xl rounded-xl p-6 mb-4 ring-4 ring-[var(--secondary)]/30 flex-shrink-0">
+                    <h2 class="text-xl font-semibold mb-4 text-[var(--primary)] border-b pb-2">ข้อมูล Purchase Order</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
+
+                        <!-- Column 1: PO Data (Read-Only/Dynamic) -->
+                        <div>
+                            <!-- V13 FIX: Caption: font-bold, Data: text-black font-normal -->
+                            <div class="flex flex-col sm:flex-row mb-2"><label class="w-40 font-bold text-gray-700">PO#:</label><p id="po_number" class="w-full text-black font-normal"></p></div>
+                            <div class="flex flex-col sm:flex-row mb-2"><label class="w-40 font-bold text-gray-700">PO Date:</label><p id="po_date" class="w-full text-black font-normal"></p></div>
+                            <div class="flex flex-col sm:flex-row mb-2"><label class="w-40 font-bold text-gray-700">Maker Code:</label><p id="vendor_code" class="w-full text-black font-normal"></p></div>
+                            <div class="flex flex-col sm:flex-row mb-2"><label class="w-40 font-bold text-gray-700">Maker Name:</label><p id="vendor_name" class="w-full text-black font-normal"></p></div>
+                            
+                            <!-- V36 CHANGE: Dynamic Stock# Field -->
+                            <div class="flex flex-col sm:flex-row mb-2">
+                                <!-- ID for conditional caption change -->
+                                <label id="label_stock_no" class="w-40 font-bold text-gray-700">MATERIAL:</label>
+                                <!-- Container for dynamic content (P or INPUT) -->
+                                <div id="stock_no_container" class="w-full text-black font-normal">
+                                    <!-- Initial placeholder content -->
+                                    <p id="stock_no" class="text-black font-normal"></p>
+                                </div>
+                            </div>
+                            <!-- END V36 CHANGE -->
+
+                            <div class="flex flex-col sm:flex-row mb-2"><label class="w-40 font-bold text-gray-700">UOM:</label><p id="uom" class="w-full text-black font-normal"></p></div>
+                            <div class="flex flex-col sm:flex-row mb-2"><label class="w-40 font-bold text-gray-700">MODEL:</label><p id="model" class="w-full text-black font-normal"></p></div>
+                            <div class="flex flex-col sm:flex-row mb-2"><label class="w-40 font-bold text-gray-700">Part#:</label><p id="part_no" class="w-full text-black font-normal"></p></div>
+                            <div class="flex flex-col sm:flex-row mb-2"><label class="w-40 font-bold text-gray-700">Part Name:</label><p id="part_name" class="w-full text-black font-normal"></p></div>
+                        </div>
+
+                        <!-- Column 2: Invoice Data (Input Fields) -->
+                        <div class="space-y-4">
+                            <div class="flex flex-col sm:flex-row items-start sm:items-center">
+                                <label for="input_invoice_number" class="w-40 font-bold text-gray-700">Invoice#:</label>
+                                <!-- V36: Uppercase Added -->
+                                <input type="text" id="input_invoice_number" data-next="input_invoice_date" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition" placeholder="กรอกเลขที่ Invoice" oninput="this.value = this.value.toUpperCase()">
+                            </div>
+                            <div class="flex flex-col sm:flex-row items-start sm:items-center">
+                                <label for="input_invoice_date" class="w-40 font-bold text-gray-700">Invoice Date:</label>
+                                <!-- V36: Date input (no uppercase) -->
+                                <input type="date" id="input_invoice_date" data-next="input_packing_list" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition">
+                            </div>
+                            <div class="flex flex-col sm:flex-row items-start sm:items-center">
+                                <label for="input_packing_list" id="label_packing_list" class="w-40 font-bold text-gray-700">Packing List:</label>
+                                <!-- V36: Uppercase Added. data-next is now dynamic (set in updateUI) -->
+                                <input type="text" id="input_packing_list" data-next="input_coil_no" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition" placeholder="กรอกเลขที่ Packing List" oninput="this.value = this.value.toUpperCase()">
+                            </div>
+                            
+                            <!-- NEW: Wrapper for conditional header COIL No. (hidden by default) -->
+                            <div id="header_coil_no_container" class="flex flex-col sm:flex-row items-start sm:items-center hidden">
+                                <!-- V36 CHANGE: ID for conditional caption change -->
+                                <label for="input_coil_no" id="label_coil_no" class="w-40 font-bold text-gray-700">COIL No.:</label>
+                                <!-- V36: Uppercase Added. data-next points to ship_qty -->
+                                <input type="text" id="input_coil_no" data-next="input_ship_qty" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition" oninput="this.value = this.value.toUpperCase()">
+                            </div>
+                            
+                            <!-- Read-Only Qty Info -->
+                            <!-- V13 FIX: Data: text-black font-normal -->
+                            <div class="flex flex-col sm:flex-row mb-2"><label class="w-40 font-bold text-gray-700">Std Pack:</label><p id="std_pack" class="w-full text-black font-normal"></p></div>
+                            <div class="flex flex-col sm:flex-row mb-2"><label class="w-40 font-bold text-gray-700">Po Qty:</label><p id="po_qty" class="w-full text-black font-normal"></p></div>
+                        
+                            <!-- NEW: Ship Qty Input Container -->
+                            <div id="ship_qty_input_container" class="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-2 hidden">
+                                <label for="input_ship_qty" class="w-40 font-bold text-gray-700">Invoice Qty:</label>
+                                <input type="number" id="input_ship_qty" data-next="btn-confirm-qty" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition">
+                                <button id="btn-confirm-qty" class="btn-base btn-primary flex-shrink-0" onclick="confirmShipQty()">Confirm</button>
+                            </div>
+                            <!-- NEW: Ship Qty Display Container -->
+                            <div id="ship_qty_display_container" class="flex flex-col sm:flex-row mb-2 hidden">
+                                <label class="w-40 font-bold text-gray-700">Invoice Qty:</label>
+                                <p id="display_ship_qty" class="w-full text-black font-normal"></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ส่วน Detail (ตารางรายการ Tag) - Scrollable Area -->
+                <div id="detail-table-container" class="bg-white shadow-xl rounded-xl p-4 overflow-x-auto flex flex-col flex-grow hidden">
+                    
+                    <!-- Table Title (Fixed) -->
+                    <h2 class="text-xl font-semibold mb-4 text-[var(--primary)] border-b pb-2 flex-shrink-0">รายละเอียด Tag (จำนวน <span id="tag-count" class="text-[var(--danger)]">0</span> รายการ)</h2>
+                    
+                    <!-- Scrollable Table Body Wrapper - This is the dedicated scroll viewport -->
+                    <div id="detail-table-wrapper" class="flex-grow overflow-y-auto rounded-lg ring-1 ring-gray-200"> 
+                        <table id="detail-table" class="min-w-full divide-y divide-gray-200">
+                            <!-- Table Header - Now sticky via CSS 'thead' style rule -->
+                            <thead class="bg-[var(--primary)] text-white">
+                                <tr>
+                                    <!-- V21 FIX: Changed text-left to text-center for Item# column header -->
+                                    <th class="w-16 p-3 text-center text-sm font-semibold uppercase tracking-wider rounded-tl-lg">Item#</th>
+                                    <th class="p-3 text-left text-sm font-semibold uppercase tracking-wider">Lot#</th>
+                                    <!-- NEW: Conditional COIL No. Header (hidden by default) -->
+                                    <th id="th-coil-no" class="p-3 text-left text-sm font-semibold uppercase tracking-wider hidden">COIL No.</th>
+                                    <th class="w-36 p-3 text-right text-sm font-semibold uppercase tracking-wider rounded-tr-lg">Invoice Qty</th>
+                                </tr>
+                            </thead>
+                            <!-- V24 FIX: REMOVE bg-white from tbody to allow CSS :nth-child to work -->
+                            <tbody id="detail-table-body" class="divide-y divide-gray-100">
+                                <!-- Rows will be injected here -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <!-- Validation Error Summary (Fixed) -->
+                    <p id="validation-summary" class="text-sm text-[var(--danger)] mt-3 font-medium hidden flex-shrink-0">
+                        กรุณาตรวจสอบข้อมูลที่ยังไม่สมบูรณ์
+                    </p>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- 3. ส่วนที่ 3: Footer (Fixed Bottom) -->
+    <footer id="bottom-footer" class="bg-gray-800 text-white p-3 shadow-2xl hidden">
+        <div class="max-w-7xl mx-auto flex justify-between items-center text-sm">
+            <div>
+                <span class="font-medium">Total Items:</span>
+                <span id="footer-item-count" class="ml-1 text-[var(--accent)] font-bold">0</span>
+            </div>
+            <div>
+                <span class="font-medium">Total Invoice Qty:</span>
+                <span id="footer-inv-qty" class="ml-1 text-[var(--accent)] font-bold">0</span>
+                / <span id="footer-po-qty" class="font-bold">0</span> (<span id="qty-status" class="text-red-400">Not Matched</span>)
+            </div>
+        </div>
+    </footer>
+
+    <!-- Modal Template for Import, Alert, Confirm -->
+    <!-- V18 FIX: Added 'flex' explicitly to ensure centering when the 'hidden' class is removed by JS -->
+    <div id="modal-backdrop" class="fixed inset-0 bg-gray-900 bg-opacity-75 hidden z-50 transition-opacity duration-300 flex items-center justify-center">
+
+        <!-- Import Modal (File Select) -->
+        <div id="import-modal" class="bg-white rounded-xl shadow-2xl p-6 w-11/12 max-w-md hidden">
+            <h3 class="text-2xl font-bold mb-4 text-[var(--primary)]">นำเข้าข้อมูล PO</h3>
+            <p class="mb-4 text-gray-600">กรุณาเลือกไฟล์ JSON ที่มีข้อมูล PO ตามรูปแบบที่กำหนด:</p>
+            <input type="file" id="import-file-selector" accept=".json" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--primary)]" onchange="document.getElementById('btn-confirm-import').disabled = !this.files.length;">
+            <div class="mt-6 flex justify-end space-x-3">
+                <button class="btn-base bg-gray-300 text-gray-800 hover:bg-gray-400" onclick="hideModal('import-modal')">ยกเลิก</button>
+                <button id="btn-confirm-import" class="btn-base btn-primary disabled:opacity-50" onclick="triggerFileImport()" disabled>นำเข้า</button>
+            </div>
+        </div>
+
+        <!-- Alert/Error Modal -->
+        <div id="alert-modal" class="bg-white rounded-xl shadow-2xl p-6 w-11/12 max-w-md hidden">
+            <!-- V37: Dynamic class for title color -->
+            <h3 id="alert-title" class="text-2xl font-bold mb-4 flex items-center text-[var(--danger)]">
+                <!-- SVG will be dynamically updated by JS -->
+                <svg id="alert-icon" xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                <span id="alert-title-text">ข้อผิดพลาด</span>
+            </h3>
+            <p id="alert-message" class="mb-6 text-gray-700"></p>
+            <div class="mt-4 flex justify-end">
+                <!-- V37: Dynamic class for button color -->
+                <button id="alert-ok-btn" class="btn-base bg-[var(--danger)] text-white hover:opacity-90" onclick="hideModal('alert-modal', true)">ตกลง (Enter)</button>
+            </div>
+        </div>
+
+        <!-- Confirm Modal (Clear Data) -->
+        <div id="confirm-modal" class="bg-white rounded-xl shadow-2xl p-6 w-11/12 max-w-md hidden">
+            <h3 class="text-2xl font-bold mb-4 text-[var(--warning)] flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                ยืนยันการดำเนินการ
+            </h3>
+            <p id="confirm-message" class="mb-6 text-gray-700">คุณต้องการล้างข้อมูลทั้งหมด และกลับสู่หน้าเริ่มต้นใช่หรือไม่?</p>
+            <div class="mt-4 flex justify-end space-x-3">
+                <button class="btn-base bg-gray-300 text-gray-800 hover:bg-gray-400" onclick="hideModal('confirm-modal')">ยกเลิก</button>
+                <button id="confirm-ok-btn" class="btn-base btn-danger" onclick="clearData()">ตกลง (Enter)</button>
+            </div>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div id="loading-spinner" class="bg-gray-900 bg-opacity-50 p-6 rounded-full hidden">
+            <div class="spinner h-12 w-12 border-4 border-t-4 rounded-full border-gray-200"></div>
+        </div>
+    </div>
+
+
+    <!-- Hidden DIV for PDF/Print Generation -->
+    <div id="print-area" class="hidden"></div>
+
+
+    <script>
+        // Global state and configuration
+        let importedData = null;
+        let tagDetails = [];
+        const APP_CONST = {
+            FORM_NAME: "F-01-001",
+        };
+        // NEW: input_coil_no removed, will be validated conditionally
+        const INPUT_FIELDS = [
+            'input_invoice_number', 'input_invoice_date', 'input_packing_list'
+        ];
+        const THEME = {
+            primary: '#1E88E5',
+            danger: '#EF5350',
+            success: '#66BB6A' // Added Success Theme Color
+        };
+
+        // V36: Global state for conditional captions
+        let currentCaptions = {
+            stock_no: "Stock#:",
+            coil_no: "COIL No.:",
+            packing_list: "Packing List:" // Added Packing List Caption
+        };
+        
+        // V36: Global state to track if stock_no is an input field
+        let isStockNoInput = false;
+        // NEW: Global state for confirmed ship qty
+        let confirmedShipQty = 0;
+        // NEW: Global state for conditional COIL No. input mode
+        let isPerLotCoilNo = false;
+
+        // ----------------------------------------------------------------------
+        // V17 NEW FUNCTION: Base64 Decode
+        // ----------------------------------------------------------------------
+        /**
+         * Decodes a Base64 string to a plain string.
+         * @param {string} str - The Base64 encoded string.
+         * @returns {string} The decoded string.
+         */
+        function base64Decode(str) {
+            if (typeof atob === 'undefined') {
+                console.error("atob not supported.");
+                return '';
+            }
+            try {
+                // For typical ASCII/alphanumeric PO numbers, atob is fine.
+                return atob(str);
+            } catch (e) {
+                console.error("Base64 decoding failed:", e);
+                return '';
+            }
+        }
+
+
+        // ----------------------------------------------------------------------
+        // V15 NEW FUNCTION: Date Formatting (Re-added)
+        // ----------------------------------------------------------------------
+        /** * แปลงวันที่จากรูปแบบ YYYY-MM-DD (จาก input date) เป็น DD/MM/YYYY
+         * @param {string} dateString - วันที่ในรูปแบบ 'YYYY-MM-DD'
+         * @returns {string} วันที่ในรูปแบบ 'DD/MM/YYYY' หรือคืนค่าเดิมถ้าแปลงไม่ได้
+         */
+        function formatDate(dateString) {
+            if (!dateString) return '';
+            
+            // Check if it matches the YYYY-MM-DD format
+            const parts = dateString.split('-');
+            if (parts.length === 3 && parts[0].length === 4) {
+                const [year, month, day] = parts;
+                return `${day}/${month}/${year}`;
+            }
+            
+            return dateString; // Return original if format is unexpected
+        }
+
+
+        // ----------------------------------------------------------------------
+        // NEW: Helper function to validate date reasonableness
+        // ----------------------------------------------------------------------
+        /**
+         * ตรวจสอบว่าวันที่อยู่ในช่วงที่สมเหตุสมผลหรือไม่ (เช่น +/- 10 ปี)
+         * @param {string} dateString - วันที่ในรูปแบบ 'YYYY-MM-DD'
+         * @returns {boolean}
+         */
+        function isDateReasonable(dateString) {
+            if (!dateString) return false;
+            
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return false; // 1. ต้องเป็นวันที่ที่ถูกต้องก่อน
+
+            // 2. ตรวจสอบช่วงปีที่สมเหตุสมผล
+            const enteredYear = date.getFullYear();
+            const currentYear = new Date().getFullYear();
+            const minYear = currentYear - 10; // 10 ปีในอดีต
+            const maxYear = currentYear + 10; // 10 ปีในอนาคต
+
+            // ต้องอยู่ระหว่าง minYear และ maxYear
+            return enteredYear >= minYear && enteredYear <= maxYear;
+        }
+
+
+        // ----------------------------------------------------------------------
+        // 1. UI Control Functions (Modals, Loading, Visibility)
+        // ----------------------------------------------------------------------
+
+        /** แสดง Loading Spinner */
+        function showLoading() {
+            document.getElementById('modal-backdrop').classList.remove('hidden');
+            document.getElementById('loading-spinner').classList.remove('hidden');
+        }
+
+        /** ซ่อน Loading Spinner และ Modal ทั้งหมด */
+        function hideLoading() {
+            document.getElementById('loading-spinner').classList.add('hidden');
+            // Check if any other modal is visible before hiding backdrop
+            const visibleModals = ['import-modal', 'alert-modal', 'confirm-modal'].filter(id => !document.getElementById(id).classList.contains('hidden'));
+            
+            if (visibleModals.length === 0) {
+                 document.getElementById('modal-backdrop').classList.add('hidden');
+            }
+        }
+
+        /** แสดง Modal ที่กำหนด */
+        function showModal(modalId) {
+            // V18: The 'flex items-center justify-center' on backdrop ensures centering 
+            // when the 'hidden' class is removed.
+            document.getElementById('modal-backdrop').classList.remove('hidden');
+            document.getElementById(modalId).classList.remove('hidden');
+            // Set focus for accessibility
+            if (modalId === 'alert-modal') {
+                document.getElementById('alert-ok-btn').focus();
+            } else if (modalId === 'confirm-modal') {
+                document.getElementById('confirm-ok-btn').focus();
+            }
+        }
+
+        /** ซ่อน Modal ที่กำหนด */
+        function hideModal(modalId, isAlert) {
+            document.getElementById(modalId).classList.add('hidden');
+            
+            // Check if any other modal is visible before hiding backdrop
+            const visibleModals = ['import-modal', 'alert-modal', 'confirm-modal'].filter(id => !document.getElementById(id).classList.contains('hidden'));
+            
+            if (visibleModals.length === 0) {
+                 document.getElementById('modal-backdrop').classList.add('hidden');
+            }
+
+            // After closing alert, try to focus on the last focus-target element
+            if (isAlert && window.lastFocusTarget) {
+                window.lastFocusTarget.focus();
+                delete window.lastFocusTarget;
+            }
+        }
+
+        /** แสดง Modal สำหรับ Import PO */
+        function showFileImport() {
+            // NOTE: Clear file input from modal to allow selection of the same file again
+            document.getElementById('import-file-selector').value = ''; 
+            document.getElementById('btn-confirm-import').disabled = true;
+            showModal('import-modal');
+        }
+
+        /** แสดง Alert/Error Modal (Modified to support success type) */
+        function showAlert(title, message, focusElementId, type = 'error') {
+            const titleEl = document.getElementById('alert-title');
+            const iconEl = document.getElementById('alert-icon');
+            const btnEl = document.getElementById('alert-ok-btn');
+            const titleTextEl = document.getElementById('alert-title-text');
+
+            titleTextEl.innerHTML = title;
+            document.getElementById('alert-message').textContent = message;
+
+            if (type === 'success') {
+                // Change to Success Style (Green)
+                titleEl.className = `text-2xl font-bold mb-4 flex items-center text-[var(--success)]`;
+                // Success Checkmark Icon
+                iconEl.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />`;
+                btnEl.className = `btn-base bg-[var(--success)] text-white hover:opacity-90`;
+            } else {
+                // Default Error Style (Red)
+                titleEl.className = `text-2xl font-bold mb-4 flex items-center text-[var(--danger)]`;
+                // Error Warning Icon
+                iconEl.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />`;
+                btnEl.className = `btn-base bg-[var(--danger)] text-white hover:opacity-90`;
+            }
+
+            // Store the element to focus on after closing the alert
+            if (focusElementId) {
+                // V36: If focusElementId is the dynamic stock_no input, handle it
+                if (focusElementId === 'input_stock_no' && isStockNoInput) {
+                    window.lastFocusTarget = document.getElementById(focusElementId);
+                } else if (document.getElementById(focusElementId)) {
+                    window.lastFocusTarget = document.getElementById(focusElementId);
+                } else {
+                     delete window.lastFocusTarget;
+                }
+            } else {
+                 delete window.lastFocusTarget;
+            }
+
+            showModal('alert-modal');
+        }
+
+        /** แสดง Confirm Modal สำหรับ Clear Data */
+        function showClearConfirm() {
+            showModal('confirm-modal');
+        }
+
+        // ----------------------------------------------------------------------
+        // 2. Data Handling (Import, Reset, State Management)
+        // ----------------------------------------------------------------------
+
+        /** Trigger file import (from modal's input) and pass to handler */
+        function triggerFileImport() {
+            const fileInput = document.getElementById('import-file-selector');
+            const files = fileInput.files;
+
+            if (files.length > 0) {
+                // Directly call handleFileImport with the file list from the modal input
+                handleFileImport({ target: { files: files } });
+            }
+            
+            // Hide the modal
+            hideModal('import-modal');
+        }
+
+
+        /** จัดการการนำเข้าไฟล์ JSON */
+        function handleFileImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            showLoading();
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const json = JSON.parse(e.target.result);
+                    processImportData(json);
+                } catch (error) {
+                    hideLoading();
+                    showAlert('Import Failed', 'รูปแบบไฟล์ JSON ไม่ถูกต้อง: โปรดตรวจสอบว่าไฟล์มีรูปแบบ JSON ที่ถูกต้อง');
+                    console.error('Import Error:', error);
+                }
+            };
+            reader.onerror = () => {
+                hideLoading();
+                showAlert('Import Failed', 'ไม่สามารถอ่านไฟล์ได้');
+            };
+            reader.readAsText(file);
+        }
+
+        /** ประมวลผลข้อมูลที่ Import และอัปเดต UI (V36: เพิ่ม po_type check) */
+        function processImportData(data) {
+            // 1. Basic validation for required fields
+            if (!data.po_qty || !data.std_pack || !data.po_number || !data.Company || !data.encode) {
+                 hideLoading();
+                 showAlert('Data Format Error', 'ข้อมูล PO ไม่สมบูรณ์: ขาด Po Qty, Std Pack, PO Number, Company หรือ **Encode** field');
+                 return;
+            }
+            
+            // 2. V17 Security Check: Decode and Compare PO Number
+            const encodedPo = data.encode.trim();
+            const originalPo = data.po_number.trim();
+            let decodedPo = '';
+
+            try {
+                decodedPo = base64Decode(encodedPo).trim();
+            } catch (e) {
+                 hideLoading();
+                 showAlert('Security Check Failed', 'ไม่สามารถถอดรหัส Base64 ของ Field **encode** ได้: รูปแบบไม่ถูกต้อง');
+                 console.error('Base64 Decoding Error:', e);
+                 return;
+            }
+
+            if (decodedPo !== originalPo) {
+                hideLoading();
+                showAlert(
+                    'Security Check Failed', 
+                   // `ไฟล์นำเข้าไม่ถูกต้อง: รหัส PO ที่ถอดรหัส (**${decodedPo}**) ไม่ตรงกับ PO Number (**${originalPo}**) กรุณาตรวจสอบไฟล์`
+                    `ไฟล์นำเข้าไม่ถูกต้อง กรุณาตรวจสอบไฟล์`
+                );
+                console.error('Security Check Failed: Decoded PO does not match original PO.', { decodedPo, originalPo });
+                return; // Stop import if check fails
+            }
+
+            // 3. V36: Initialize po_type
+            if (!data.po_type) data.po_type = 'OTHER';
+            
+            // 4. Data is valid, proceed with processing
+            importedData = data;
+            
+            // RESET state related to lots
+            tagDetails = [];
+            confirmedShipQty = 0; 
+            isPerLotCoilNo = false; // Reset flag
+
+            // 5. Update header UI (which now shows Ship Qty input)
+            updateUI();
+            hideLoading();
+            
+            // 6. Focus is handled inside updateUI
+            // (e.g., to stock_no input or invoice_no input)
+        }
+
+        /** ล้างข้อมูลทั้งหมดและรีเซ็ต UI */
+        function clearData() {
+            showLoading();
+            setTimeout(() => { // Use timeout to allow loading spinner to show
+                importedData = null;
+                tagDetails = [];
+                isStockNoInput = false; // V36: Reset flag
+                confirmedShipQty = 0; // NEW: Reset confirmed qty
+                isPerLotCoilNo = false; // NEW: Reset flag
+
+                // Reset UI visibility
+                document.getElementById('welcome-message').classList.remove('hidden');
+                document.getElementById('data-view').classList.add('hidden');
+                document.getElementById('btn-import-po').classList.remove('hidden');
+                document.getElementById('btn-import-excel').classList.add('hidden'); // NEW: Hide Excel btn
+                document.getElementById('btn-print-tag').classList.add('hidden');
+                document.getElementById('btn-clear-data').classList.add('hidden');
+                document.getElementById('bottom-footer').classList.add('hidden');
+                document.getElementById('btn-print-tag').disabled = true;
+
+                // Clear input fields
+                INPUT_FIELDS.forEach(id => {
+                    const el = document.getElementById(id);
+                    el.value = (el.type === 'date') ? '' : '';
+                });
+                // RESET Coil No Input State (Important for PAINTING reset)
+                const coilInput = document.getElementById('input_coil_no');
+                coilInput.value = ''; 
+                coilInput.disabled = false;
+                coilInput.classList.remove('bg-gray-100', 'cursor-not-allowed');
+
+                document.getElementById('input_ship_qty').value = ''; // NEW
+
+                // Clear all display fields
+                document.querySelectorAll('#header-data-card p').forEach(p => p.textContent = '');
+                document.getElementById('detail-table-body').innerHTML = '';
+                document.getElementById('tag-count').textContent = '0';
+                
+                // V36: Reset dynamic UI elements and captions
+                document.getElementById('label_stock_no').textContent = 'MATERIAL:';
+                document.getElementById('label_coil_no').textContent = 'COIL No.:';
+                document.getElementById('label_packing_list').textContent = 'Packing List:'; // Reset
+                document.getElementById('stock_no_container').innerHTML = '<p id="stock_no" class="text-black font-normal"></p>';
+
+                // NEW: Reset coil containers
+                document.getElementById('header_coil_no_container').classList.add('hidden');
+                document.getElementById('th-coil-no').classList.add('hidden');
+                document.getElementById('th-coil-no').textContent = 'COIL No.'; // Reset caption
+
+                // NEW: Reset ship qty containers
+                document.getElementById('ship_qty_input_container').classList.add('hidden');
+                document.getElementById('ship_qty_display_container').classList.add('hidden');
+                document.getElementById('display_ship_qty').textContent = '';
+
+                // Hide detail table
+                document.getElementById('detail-table-container').classList.add('hidden');
+
+
+                updateFooter(); // Reset footer counts (which calls checkPrintReadiness)
+
+                hideModal('confirm-modal');
+                hideLoading();
+            }, 300);
+        }
+
+
+        // ----------------------------------------------------------------------
+        // 3. UI Rendering and Updates
+        // ----------------------------------------------------------------------
+
+        /** อัปเดต UI จากข้อมูลที่ Import (V36: Dynamic Captions & Stock# Input) */
+        function updateUI() {
+            if (!importedData) return;
+
+            document.getElementById('welcome-message').classList.add('hidden');
+            document.getElementById('data-view').classList.remove('hidden');
+            document.getElementById('btn-import-po').classList.add('hidden');
+            document.getElementById('btn-import-excel').classList.remove('hidden'); // NEW: Show Excel btn
+            document.getElementById('btn-print-tag').classList.remove('hidden');
+            document.getElementById('btn-clear-data').classList.remove('hidden');
+            document.getElementById('bottom-footer').classList.remove('hidden');
+
+            // FIX: Trim and sanitize poType to ensure correct logic for "PIPE" vs "PART"
+            const poType = (importedData.po_type || 'OTHER').toUpperCase().trim();
+            
+            // 1. Update Conditional Captions (Frontend)
+            currentCaptions.stock_no = "MATERIAL:";
+            currentCaptions.coil_no = "COIL No.:";
+            currentCaptions.packing_list = "Packing List:"; // Default
+
+            if (poType === 'PAINTING') {
+                currentCaptions.stock_no = "Production:";
+                currentCaptions.coil_no = "COIL/LOT NO.:"; // NEW Caption
+                //currentCaptions.packing_list = "LOT# MAT:"; 
+            } else if (poType === 'PART') {
+                currentCaptions.stock_no = "Spec Material:";
+            }
+            
+            //} else if (poType === 'PART') {
+            //    currentCaptions.stock_no = "Production:";
+            //    currentCaptions.coil_no = "JPR CODE:";
+            //} else if (poType === 'PART_BUY') {
+            //    currentCaptions.stock_no = "Spec Material:";
+            //}
+            
+            // Update the display labels
+            document.getElementById('label_stock_no').textContent = currentCaptions.stock_no;
+            document.getElementById('label_coil_no').textContent = currentCaptions.coil_no; // For header
+            document.getElementById('th-coil-no').textContent = currentCaptions.coil_no; // For table header
+            document.getElementById('label_packing_list').textContent = currentCaptions.packing_list; // Label Update
+
+
+            // **NEW: Update placeholder for HEADER COIL No. input field dynamically**
+            const coilInput = document.getElementById('input_coil_no');
+            const coilCaption = currentCaptions.coil_no.replace(':', ''); // Remove colon for cleaner placeholder
+            coilInput.placeholder = `กรอก ${coilCaption}`;
+
+            // ** Update Packing List Placeholder **
+            const packingInput = document.getElementById('input_packing_list');
+            const packingCaption = currentCaptions.packing_list.replace(':', '');
+            packingInput.placeholder = `กรอก ${packingCaption}`;
+
+            // NEW: Set conditional COIL NO flag
+            // FIX: Include PAINTING as a type that uses HEADER Coil No (not Per-Lot)
+            //isPerLotCoilNo = !(poType === 'PART' || poType === 'PART_BUY' || poType === 'PAINTING');
+            isPerLotCoilNo = !(poType === 'PAINTING' || poType === 'PAINTING');
+            
+            // NEW: Show/Hide COIL NO sections
+            const headerCoilContainer = document.getElementById('header_coil_no_container');
+            const tableCoilHeader = document.getElementById('th-coil-no');
+            const packingListInput = document.getElementById('input_packing_list');
+            
+            // *** SPECIAL LOGIC FOR PAINTING: Populate and Disable Coil/Lot No ***
+            if (poType === 'PAINTING') {
+                coilInput.value = (importedData.stock_no || '').trim();
+                coilInput.disabled = true;
+                coilInput.classList.add('bg-gray-100', 'cursor-not-allowed'); // Gray out
+            } else {
+                // Reset for others
+                coilInput.disabled = false;
+                coilInput.classList.remove('bg-gray-100', 'cursor-not-allowed');
+            }
+
+            if (isPerLotCoilNo) {
+                // Case: PIPE, OTHER -> Show in Table, Hide Header
+                headerCoilContainer.classList.add('hidden');
+                tableCoilHeader.classList.remove('hidden');
+                packingListInput.dataset.next = 'input_ship_qty'; // Skip header coil_no
+                
+                // Clear header input to prevent validation error
+                coilInput.value = ''; 
+            } else {
+                // Case: PART, PART_BUY, PAINTING -> Show in Header, Hide Table
+                headerCoilContainer.classList.remove('hidden');
+                tableCoilHeader.classList.add('hidden');
+                packingListInput.dataset.next = 'input_coil_no'; // Point to header coil_no
+                // Ensure header coil_no points to ship_qty
+                coilInput.dataset.next = 'input_ship_qty';
+
+                // Only clear if NOT Painting (since Painting sets it specific value)
+                if (poType !== 'PAINTING') {
+                    coilInput.value = '';
+                }
+            }
+
+
+            // 2. Handle Dynamic Stock# Input
+            const stockNoContainer = document.getElementById('stock_no_container');
+            stockNoContainer.innerHTML = ''; // Clear previous content
+            
+            const rawStockNo = (importedData.stock_no || '').trim();
+            isStockNoInput = (rawStockNo === '');
+            const defaultNextFocus = 'input_invoice_number'; // Next focus if stock_no is read-only
+
+            if (isStockNoInput) {
+                // If stock_no is blank, show input field
+                const stockInput = document.createElement('input');
+                stockInput.type = 'text';
+                stockInput.id = 'input_stock_no'; // New ID for the input field
+                // Combine existing classes with focus style and custom class for CSS focus fix
+                stockInput.className = 'stock-input-field w-full border rounded-lg p-2 focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition text-black font-normal';
+                stockInput.placeholder = `กรอก ${currentCaptions.stock_no.replace(':', '')}`;
+                stockInput.value = ''; 
+                // V36: Uppercase and data tracking
+                stockInput.oninput = function() { this.value = this.value.toUpperCase(); checkPrintReadiness(); };
+                stockInput.dataset.next = defaultNextFocus; 
+                stockNoContainer.appendChild(stockInput);
+                
+                // Focus on this field (First in sequence)
+                setTimeout(() => stockInput.focus(), 100); 
+                
+            } else {
+                // If stock_no exists, show read-only paragraph
+                const stockP = document.createElement('p');
+                stockP.id = 'stock_no';
+                stockP.className = 'text-black font-normal';
+                stockP.textContent = rawStockNo;
+                stockNoContainer.appendChild(stockP);
+                
+                // Default focus to invoice number if stock_no is read-only
+                document.getElementById(defaultNextFocus).focus();
+            }
+            
+            // 3. Update Header Display (Read-Only)
+            document.getElementById('po_number').textContent = importedData.po_number || '-';
+            document.getElementById('po_date').textContent = importedData.po_date || '-';
+            document.getElementById('vendor_code').textContent = importedData.vendor_code || '-';
+            document.getElementById('vendor_name').textContent = importedData.vendor_name || '-';
+            
+            document.getElementById('uom').textContent = importedData.uom || '-'; 
+            document.getElementById('model').textContent = importedData.model || '-';
+            
+            document.getElementById('part_no').textContent = importedData.part_no || '-';
+            document.getElementById('part_name').textContent = importedData.part_name || '-';
+            
+            // Other data remains in the right column
+            // MODIFIED: Show '-' if std_pack is 0
+            document.getElementById('std_pack').textContent = importedData.std_pack > 0 ? importedData.std_pack.toLocaleString() : '-';
+            document.getElementById('po_qty').textContent = importedData.po_qty ? importedData.po_qty.toLocaleString() : '0';
+
+
+            // 4. Setup Ship Qty Input (NEW)
+            document.getElementById('input_ship_qty').value = importedData.po_qty;
+            document.getElementById('ship_qty_input_container').classList.remove('hidden');
+            document.getElementById('ship_qty_display_container').classList.add('hidden');
+
+            // 5. Hide Detail Table (it will be shown after confirm)
+            document.getElementById('detail-table-container').classList.add('hidden');
+            document.getElementById('validation-summary').classList.add('hidden');
+            
+            // 6. Update Footer (to show initial PO Qty)
+            updateFooter();
+            
+            // 7. Handle focus (already done by stock_no logic or default)
+            // Focus logic inside updateUI will set focus to stock_no or invoice_no
+            // data-next attributes in HTML will handle flow to input_ship_qty
+        }
+
+        /** สร้างแถว Detail Table */
+        function renderDetailTable() {
+            const tbody = document.getElementById('detail-table-body');
+            tbody.innerHTML = '';
+            document.getElementById('tag-count').textContent = tagDetails.length.toLocaleString();
+
+            const totalTags = tagDetails.length;
+
+            tagDetails.forEach((tag, index) => {
+                const row = tbody.insertRow();
+                
+                // Column 1: Item# (Read-Only)
+                const itemCell = row.insertCell();
+                itemCell.textContent = tag.item_no;
+                itemCell.className = 'text-center'; 
+
+                // Column 2: Lot# (Input)
+                const lotCell = row.insertCell();
+                const lotId = `lot_no_${tag.item_no}`;
+                const lotInput = document.createElement('input');
+                lotInput.type = 'text';
+                lotInput.id = lotId;
+                lotInput.className = 'text-black font-normal'; 
+                lotInput.placeholder = `Lot# ${tag.item_no}`;
+                lotInput.value = tag.lot_no;
+                // V36: Apply uppercase and update data
+                lotInput.oninput = (e) => {
+                    e.target.value = e.target.value.toUpperCase();
+                    updateDetailData(index, 'lot_no', e.target.value);
+                };
+
+                // NEW: Dynamic data-next for Lot Input
+                let nextFocusAfterLot = '';
+                if (isPerLotCoilNo) {
+                    nextFocusAfterLot = `coil_no_${tag.item_no}`;
+                } else if (tag.is_editable) {
+                    nextFocusAfterLot = `inv_qty_${tag.item_no}`;
+                } else if (index < totalTags - 1) {
+                    nextFocusAfterLot = `lot_no_${tag.item_no + 1}`;
+                } else {
+                    nextFocusAfterLot = 'btn-print-tag';
+                }
+                lotInput.dataset.next = nextFocusAfterLot;
+                
+                if (index === 0) lotInput.id = 'first-lot-input'; // Marker for Header navigation
+                lotCell.appendChild(lotInput);
+
+                // NEW Column: COIL No. (Conditional)
+                const coilCell = row.insertCell();
+                if (isPerLotCoilNo) {
+                    const coilId = `coil_no_${tag.item_no}`;
+                    const coilInput = document.createElement('input');
+                    coilInput.type = 'text';
+                    coilInput.id = coilId;
+                    coilInput.className = 'text-black font-normal'; 
+                    coilInput.placeholder = currentCaptions.coil_no; // Use dynamic caption as placeholder
+                    coilInput.value = tag.coil_no;
+                    coilInput.oninput = (e) => {
+                        e.target.value = e.target.value.toUpperCase();
+                        updateDetailData(index, 'coil_no', e.target.value);
+                    };
+
+                    // NEW: Dynamic data-next for Coil Input
+                    let nextFocusAfterCoil = '';
+                    if (tag.is_editable) {
+                        nextFocusAfterCoil = `inv_qty_${tag.item_no}`;
+                    } else if (index < totalTags - 1) {
+                        nextFocusAfterCoil = `lot_no_${tag.item_no + 1}`;
+                    } else {
+                        nextFocusAfterCoil = 'btn-print-tag';
+                    }
+                    coilInput.dataset.next = nextFocusAfterCoil;
+
+                    coilCell.appendChild(coilInput);
+                } else {
+                    coilCell.className = 'hidden'; // Hide the cell if not used
+                }
+
+                // Column 3: Invoice Qty (Input/Read-Only)
+                const qtyCell = row.insertCell();
+                qtyCell.className = 'text-right font-medium';
+
+                if (tag.is_editable) {
+                    const qtyId = `inv_qty_${tag.item_no}`;
+                    const qtyInput = document.createElement('input');
+                    qtyInput.type = 'number';
+                    qtyInput.id = qtyId;
+                    qtyInput.className = 'text-right font-bold text-[var(--danger)]'; 
+                    qtyInput.value = tag.invoice_qty;
+                    qtyInput.min = 0;
+                    qtyInput.max = tag.max_qty; 
+                    // V36: Number input does not need uppercase
+                    qtyInput.oninput = (e) => updateDetailData(index, 'invoice_qty', parseInt(e.target.value) || 0);
+                    qtyInput.dataset.next = 'btn-print-tag'; // Last input focuses Print Tag
+
+                    qtyCell.appendChild(qtyInput);
+                } else {
+                    qtyCell.textContent = tag.invoice_qty.toLocaleString();
+                    qtyCell.classList.add('text-black', 'font-normal', 'p-3'); 
+                }
+
+                // Add data attributes for Enter key navigation
+                // const lotInputEl = row.querySelector(`#${lotId}`); // This logic is now inside loop
+                
+                const qtyInputEl = row.querySelector(`#inv_qty_${tag.item_no}`);
+                if (qtyInputEl) {
+                    qtyInputEl.dataset.next = 'btn-print-tag';
+                }
+            });
+        }
+
+        /** อัปเดตข้อมูล Lot# หรือ Invoice Qty ใน state */
+        function updateDetailData(index, key, value) {
+            // Ensure value is a number for quantity if key is 'invoice_qty'
+            if (key === 'invoice_qty') {
+                value = parseInt(value) || 0;
+            }
+            
+            // Update the state
+            tagDetails[index][key] = value;
+
+            // Specific logic for Invoice Qty (only last item is editable)
+            if (key === 'invoice_qty') {
+                updateFooter(); // Now calls checkPrintReadiness internally
+            }
+
+            // Check if all data is filled to enable print button
+            // This is now called for 'lot_no' and 'coil_no' too
+            checkPrintReadiness();
+        }
+
+        /** อัปเดตข้อมูล Footer */
+        function updateFooter() {
+            const poQty = importedData ? (importedData.po_qty || 0) : 0;
+            // If lots are calculated (tagDetails > 0), targetQty is confirmedShipQty
+            // Otherwise, target is poQty (for initial display)
+            const targetQty = (tagDetails.length > 0) ? confirmedShipQty : poQty;
+
+            const totalInvQty = tagDetails.reduce((sum, tag) => sum + (parseInt(tag.invoice_qty) || 0), 0);
+            
+            const isMatched = totalInvQty === targetQty;
+
+            document.getElementById('footer-item-count').textContent = tagDetails.length.toLocaleString();
+            document.getElementById('footer-inv-qty').textContent = totalInvQty.toLocaleString();
+            
+            // Just display the target quantity
+            document.getElementById('footer-po-qty').textContent = targetQty.toLocaleString(); 
+
+            const statusEl = document.getElementById('qty-status');
+            statusEl.textContent = isMatched ? 'Matched' : 'Not Matched';
+            statusEl.className = isMatched ? 'text-[var(--secondary)] font-bold' : 'text-red-400 font-bold';
+
+            // Check readiness based on header and lot numbers only
+            checkPrintReadiness();
+        }
+
+        /** ตรวจสอบความพร้อมในการพิมพ์ (Enable/Disable Print Button) */
+        function checkPrintReadiness() {
+            if (!importedData) {
+                document.getElementById('btn-print-tag').disabled = true;
+                return;
+            }
+            
+            // V36: Check dynamic stock_no input if present
+            let isStockNoInputFilled = true;
+            if (isStockNoInput) {
+                const stockInput = document.getElementById('input_stock_no');
+                if (!stockInput || !stockInput.value.trim()) {
+                    isStockNoInputFilled = false;
+                }
+            }
+
+            // Check standard header fields (Invoice#, Date, Packing List)
+            const allBaseHeaderFilled = INPUT_FIELDS.every(id => document.getElementById(id).value.trim());
+            
+            // NEW: Explicitly check date validity
+            const invoiceDateEl = document.getElementById('input_invoice_date');
+            // MODIFIED: Use new helper function
+            const isDateValid = isDateReasonable(invoiceDateEl.value);
+            
+            // Check conditional header COIL No.
+            let allHeaderFilled = allBaseHeaderFilled && isDateValid; // <-- MODIFIED
+            if (!isPerLotCoilNo) {
+                // If COIL No. is in header, it must be filled
+                const headerCoilInput = document.getElementById('input_coil_no');
+                if (!headerCoilInput || !headerCoilInput.value.trim()) {
+                    allHeaderFilled = false;
+                }
+            }
+            
+            // Check conditional detail fields (Lot# and COIL No.)
+            let allDetailFilled = tagDetails.length > 0; // Must have rows
+            if (allDetailFilled) {
+                if (isPerLotCoilNo) {
+                    // Must check both lot_no and coil_no
+                    allDetailFilled = tagDetails.every(tag => tag.lot_no.trim() && tag.coil_no.trim());
+                } else {
+                    // Must check only lot_no
+                    allDetailFilled = tagDetails.every(tag => tag.lot_no.trim());
+                }
+            }
+            
+            // Button is enabled if all fields (Stock, Header, Detail) are filled.
+            const isReady = importedData && isStockNoInputFilled && allHeaderFilled && allDetailFilled;
+
+            document.getElementById('btn-print-tag').disabled = !isReady;
+            document.getElementById('validation-summary').classList.toggle('hidden', isReady);
+        }
+
+        // ----------------------------------------------------------------------
+        // 4. Validation and Printing Logic
+        // ----------------------------------------------------------------------
+
+        /** NEW: Confirm Ship Qty and Generate Lots */
+        // MODIFIED: Accept optional overrideStdPack for calculation only
+        function confirmShipQty(overrideStdPack = null) {
+            const shipQtyInput = document.getElementById('input_ship_qty');
+            const shipQty = parseInt(shipQtyInput.value) || 0;
+            const poQty = importedData.po_qty || 0;
+
+            // Validation
+            if (shipQty <= 0) {
+                return showAlert('Validation Error', 'Ship Qty ต้องมากกว่า 0', 'input_ship_qty');
+            }
+            if (shipQty > poQty) {
+                return showAlert('Validation Error', `Ship Qty (${shipQty.toLocaleString()}) ห้ามมากกว่า PO Qty (${poQty.toLocaleString()})`, 'input_ship_qty');
+            }
+
+            // --- Success ---
+            confirmedShipQty = shipQty;
+            
+            // 1. Calculate Lots based on confirmedShipQty
+            // MODIFIED: Use overrideStdPack if provided, otherwise fallback to importedData.std_pack
+            // Note: overrideStdPack is used ONLY for calculation here, not updating the global `importedData.std_pack` or UI display.
+            const calcStdPack = (overrideStdPack && overrideStdPack > 0) ? overrideStdPack : importedData.std_pack;
+            
+            // Handle case where calcStdPack is still 0 (should prevent division by zero or infinite loop)
+            let totalTags;
+            if (calcStdPack === 0) {
+                totalTags = 1; // Force 1 tag if pack size is 0
+            } else {
+                totalTags = Math.ceil(confirmedShipQty / calcStdPack); 
+            }
+            
+            tagDetails = [];
+            let remainingQty = confirmedShipQty;
+
+            for (let i = 1; i <= totalTags; i++) {
+                const isLastTag = (i === totalTags);
+                let invQty;
+                
+                // MODIFIED: Handle invQty calculation if stdPack = 0
+                if (calcStdPack === 0) {
+                    invQty = remainingQty; // Single tag gets the full amount
+                } else if (isLastTag) {
+                    invQty = remainingQty;
+                    if (invQty <= 0 && i > 1) { 
+                        break; 
+                    } else if (invQty === 0 && i === 1) {
+                        invQty = 0;
+                    }
+                } else {
+                    invQty = calcStdPack;
+                }
+                
+                tagDetails.push({
+                    item_no: i,
+                    lot_no: '',
+                    coil_no: '', // NEW
+                    invoice_qty: invQty,
+                    is_editable: false, // <-- MODIFIED: No longer editable
+                    max_qty: calcStdPack,
+                });
+                remainingQty -= invQty;
+            }
+
+            // 2. Update UI
+            // Hide input, show display
+            document.getElementById('ship_qty_input_container').classList.add('hidden');
+            document.getElementById('display_ship_qty').textContent = confirmedShipQty.toLocaleString();
+            document.getElementById('ship_qty_display_container').classList.remove('hidden');
+
+            // Show and render table
+            document.getElementById('detail-table-container').classList.remove('hidden');
+            renderDetailTable();
+            updateFooter(); // updateFooter will now use confirmedShipQty
+
+            // 3. Set focus to first lot input
+            // MODIFIED: Only focus if not called from Excel Import (handled there)
+            // But we can't easily detect caller here. It's okay to focus, Excel import will fill data immediately after.
+            setTimeout(() => {
+                const firstLot = document.getElementById('first-lot-input');
+                if (firstLot) {
+                    firstLot.focus();
+                }
+            }, 100);
+        }
+
+        /** ตรวจสอบข้อมูลก่อนพิมพ์ */
+        function validateAndPrint() {
+            showLoading();
+            setTimeout(() => { // Small delay for loading animation
+                try { // <--- START try
+                    // V36: Check Dynamic Stock# Input first
+                    if (isStockNoInput) {
+                        const stockInput = document.getElementById('input_stock_no');
+                        if (!stockInput.value.trim()) {
+                            hideLoading();
+                            return showAlert('Validation Error', `กรุณากรอกข้อมูล "${currentCaptions.stock_no.replace(':', '')}" ให้ครบถ้วน`, 'input_stock_no');
+                        }
+                    }
+
+                    // NEW: Check Invoice Date validity
+                    const invoiceDateEl = document.getElementById('input_invoice_date');
+                    const invoiceDate = invoiceDateEl.value;
+                    // MODIFIED: Use new helper function
+                    if (!isDateReasonable(invoiceDate)) {
+                        hideLoading();
+                        // MODIFIED: Improved error message
+                        return showAlert('Validation Error', 'Invoice Date ไม่ถูกต้อง (กรุณาตรวจสอบปีปฏิทิน)', 'input_invoice_date');
+                    }
+
+                    // NEW: Check conditional header COIL No.
+                    if (!isPerLotCoilNo) {
+                        const headerCoilInput = document.getElementById('input_coil_no');
+                        if (!headerCoilInput.value.trim()) {
+                            hideLoading();
+                            return showAlert('Validation Error', `กรุณากรอกข้อมูล "${headerCoilInput.placeholder || 'COIL No.'}" ให้ครบถ้วน`, 'input_coil_no');
+                        }
+                    }
+
+                    // 2. Check Lot# and COIL No.
+                    // NEW: Check if tagDetails has items
+                    if (tagDetails.length === 0) {
+                        hideLoading();
+                        // This should ideally not be reachable if btn-confirm-qty is used
+                        return showAlert('Validation Error', 'ยังไม่มีรายการ Lot (กรุณา Confirm Ship Qty)', 'input_ship_qty');
+                    }
+                    
+                    const lotNumbers = new Set();
+                    for (let i = 0; i < tagDetails.length; i++) {
+                        const tag = tagDetails[i];
+                        const lotId = `lot_no_${tag.item_no}`;
+
+                        if (!tag.lot_no.trim()) {
+                            hideLoading();
+                            return showAlert('Validation Error', `Lot# สำหรับ Item ${tag.item_no} ยังไม่ถูกกรอก`, lotId);
+                        }
+                        if (lotNumbers.has(tag.lot_no.trim())) {
+                            hideLoading();
+                            return showAlert('Validation Error', `Lot# "${tag.lot_no}" สำหรับ Item ${tag.item_no} ซ้ำกัน กรุณาแก้ไข`, lotId);
+                        }
+                        lotNumbers.add(tag.lot_no.trim());
+
+                        // NEW: Check per-lot COIL No. if required
+                        if (isPerLotCoilNo) {
+                            const coilId = `coil_no_${tag.item_no}`;
+                            if (!tag.coil_no.trim()) {
+                                hideLoading();
+                                return showAlert('Validation Error', `COIL No. สำหรับ Item ${tag.item_no} ยังไม่ถูกกรอก`, coilId);
+                            }
+                        }
+                    }
+
+                    // 3. Check Last Editable Invoice Qty against Std Pack and > 0
+                    // (This section is now skipped since is_editable is false, but we keep the valid structure)
+                    const lastTag = tagDetails[tagDetails.length - 1]; // This is safe now due to length check
+                    const stdPack = importedData.std_pack;
+                    
+                    if (lastTag.is_editable) {
+                        const lastQtyId = `inv_qty_${lastTag.item_no}`; // Safe inside this block
+                        const lastInvQty = lastTag.invoice_qty;
+
+                        // Condition A: Must be less than or equal to Std Pack
+                        if (lastInvQty > stdPack) {
+                            hideLoading();
+                            return showAlert('Validation Error', 
+                                `Invoice Qty สำหรับ Item สุดท้าย (${lastInvQty.toLocaleString()}) ห้ามเกินจำนวน Standard Pack (${stdPack.toLocaleString()})`, 
+                                lastQtyId
+                            );
+                        }
+
+                        // Condition B: Must be greater than 0
+                        if (lastInvQty === 0) {
+                            hideLoading();
+                            return showAlert('Validation Error', 
+                                `Invoice Qty สำหรับ Item สุดท้ายต้องไม่เท่ากับ 0 (เนื่องจากรายการที่พิมพ์ต้องมีสินค้า)`, 
+                                lastQtyId
+                            );
+                        }
+                    } // <--- CORRECTLY CLOSED IF
+
+                    // If all passes, proceed to print
+                    generatePrintPage();
+
+                } catch (error) { // <--- CORRECTLY PLACED CATCH
+                    console.error("An unexpected error occurred during validation:", error);
+                    hideLoading();
+                    showAlert('Critical Error', `เกิดข้อผิดพลาดที่ไม่คาดคิด: ${error.message}`);
+                }
+
+            }, 500);
+        }
+
+        /** สร้างหน้า Print (PDF in new tab) */
+        function generatePrintPage() {
+            const printArea = document.getElementById('print-area');
+            printArea.innerHTML = ''; // Clear previous content
+
+            // V36: Get the current stock_no value (either from input or imported data)
+            const finalStockNo = isStockNoInput 
+                ? (document.getElementById('input_stock_no')?.value || '').toUpperCase() 
+                : importedData.stock_no;
+
+            // Collect common header/invoice data
+            const rawInvDate = document.getElementById('input_invoice_date').value;
+            const formattedInvDate = formatDate(rawInvDate); 
+
+            // NEW: Get current date for print
+            const today = new Date();
+            const printDate = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
+
+            const commonData = {
+                company: importedData.Company, 
+                rev_info: importedData.rev_info,
+                vendor_code: importedData.vendor_code,
+                vendor_name: importedData.vendor_name,
+                po_number: importedData.po_number,
+                stock_no: finalStockNo, // V36: Use final value
+                uom: importedData.uom, 
+                model: importedData.model,
+                part_no: importedData.part_no,
+                part_name: importedData.part_name,
+                packing_list: document.getElementById('input_packing_list').value,
+                // NEW: Get header coil_no only if it's NOT per-lot
+                coil_no: isPerLotCoilNo ? '' : document.getElementById('input_coil_no').value,
+                inv_no: document.getElementById('input_invoice_number').value,
+                inv_date: formattedInvDate, 
+                std_pack: importedData.std_pack,
+                ship_qty: confirmedShipQty, // <--- NEW: เพิ่ม ship_qty ลงใน QR Code Data
+                // V36: Pass conditional captions for use in createTagHtml
+                caption_stock_no: currentCaptions.stock_no.replace(':', ''),
+                caption_coil_no: currentCaptions.coil_no.replace(':', ''),
+                // V37: Pass Packing List Caption to Print
+                caption_packing_list: currentCaptions.packing_list.replace(':', ''),
+                print_date: printDate, // NEW: Add print date
+            };
+
+            let currentPageWrapper = null;
+            
+            tagDetails.forEach((tag, index) => {
+                // START Logic: Group 4 tags into a single page wrapper
+                if (index % 4 === 0) {
+                    currentPageWrapper = document.createElement('div');
+                    currentPageWrapper.className = 'print-page-wrapper'; // New class for 4-up grouping
+                    printArea.appendChild(currentPageWrapper);
+                }
+                // END Logic
+
+                const tagData = {
+                    ...commonData,
+                    lot_no: tag.lot_no,
+                    // NEW: Override coil_no with per-lot data if applicable
+                    coil_no: isPerLotCoilNo ? tag.coil_no : commonData.coil_no,
+                    inv_qty: tag.invoice_qty,
+                    tag_no: `${index + 1}/${tagDetails.length}`,
+                };
+
+                // Prepare data specifically for QR Code (Only requested fields)
+                const qrData = {
+                    Company: tagData.company,
+                    rev_info: tagData.rev_info,
+                    vendor_code: tagData.vendor_code,
+                    po_no: tagData.po_number,
+                    packing_list: tagData.packing_list,
+                    coil_no: tagData.coil_no,
+                    inv_no: tagData.inv_no,
+                    inv_date: tagData.inv_date,
+                    lot_no: tagData.lot_no,
+                    inv_qty: tagData.inv_qty,
+                    tag_no: tagData.tag_no,
+                    stock_no: tagData.stock_no, // Added this field
+                    ship_qty: tagData.ship_qty // Added this field
+                };
+
+                // Create the tag HTML structure (Visual tag still uses full data if needed, though hidden)
+                const tagHtml = createTagHtml(tagData);
+                
+                // Wrap in a div for print grid layout
+                const tagWrapper = document.createElement('div');
+                tagWrapper.className = 'tag-page'; // Class for individual tag sizing
+                tagWrapper.innerHTML = tagHtml;
+                
+                currentPageWrapper.appendChild(tagWrapper); // Append to current page wrapper
+
+                // Use qrData for QR generation
+                setTimeout(() => generateQRCode(qrData, `qrcode-canvas-${index}`), 0);
+            });
+            
+            // Open print dialog
+            setTimeout(() => {
+                hideLoading();
+                window.print();
+            }, 1000); // Delay to ensure QR codes are rendered
+        }
+
+        /** สร้าง HTML สำหรับ Tag ใบเดียว (V36: Use passed captions) */
+        function createTagHtml(data) {
+            // Use index as part of ID for uniqueness in print-area
+            const tagIndex = data.tag_no.split('/')[0] - 1; 
+
+            return `
+                <div class="tag-container">
+                    <!-- Tag Header (Uses V14 updated size) -->
+                    <div class="tag-header">
+                        ${data.company || 'บริษัททดสอบ'}
+                    </div>
+
+                    <!-- Tag Detail -->
+                    <!-- Moved print-date-style OUT of detail-right so absolute pos is relative to tag-container -->
+                    <div class="print-date-style">${data.print_date}</div>
+
+                    <div class="tag-detail">
+                        <!-- detail-left now uses CSS Grid for right-aligned captions -->
+                        <div class="detail-left">
+                            
+                            <!-- Row 1: VENDOR CODE -->
+                            <span class="detail-caption">MAKER CODE:</span>
+                            <span class="detail-value">${data.vendor_code}</span>
+                            
+                            <!-- Row 2: VENDOR NAME (SHOW IN PRINT, BUT NOT IN QR) -->
+                            <span class="detail-caption">MAKER:</span>
+                            <span class="detail-value">${data.vendor_name}</span>
+                            
+                            <!-- Row 3: PO NO -->
+                            <span class="detail-caption">PO NO:</span>
+                            <span class="detail-value">${data.po_number}</span>
+                            
+                            <!-- V36 CHANGE: Conditional Stock#/Production/SPEC MATERIAL -->
+                            <span class="detail-caption">${data.caption_stock_no}:</span>
+                            <span class="detail-value">${data.stock_no}</span>
+                            
+                            <!-- Row 5: UOM (Plain Black) (SHOW IN PRINT, BUT NOT IN QR) -->
+                            <!--<span class="detail-caption">UOM:</span>
+                            <span class="detail-value">${data.uom}</span> -->
+                            
+                            <!-- Row 6: MODEL -->
+                            <span class="detail-caption">MODEL:</span>
+                            <span class="detail-value">${data.model}</span>
+                            
+                            <!-- Row 7: PART NO -->
+                            <span class="detail-caption">PART NO:</span>
+                            <span class="detail-value">${data.part_no}</span>
+                            
+                            <!-- Row 8: PART NAME -->
+                            <span class="detail-caption">PART NAME:</span>
+                            <span class="detail-value">${data.part_name}</span>
+                            
+                            <!-- Row 9: PACKING LIST -->
+                            <span class="detail-caption">${data.caption_packing_list || 'PACKING LIST'}:</span>
+                            <span class="detail-value">${data.packing_list}</span>
+                            
+                            <!-- V36 CHANGE: Conditional COIL No/JPR CODE -->
+                            <span class="detail-caption">${data.caption_coil_no}:</span>
+                            <span class="detail-value">${data.coil_no}</span>
+                            
+                            <!-- Row 11: LOT NO (Plain Black) -->
+                            <span class="detail-caption">LOT NO:</span>
+                            <span class="detail-value">${data.lot_no}</span>
+                            
+                            <!-- Row 12: INV NO -->
+                            <span class="detail-caption">INV NO:</span>
+                            <span class="detail-value">${data.inv_no}</span>
+                            
+                            <!-- Row 13: INV DATE (V15: Already formatted to DD/MM/YYYY) -->
+                            <span class="detail-caption">INV DATE:</span>
+                            <span class="detail-value">${data.inv_date}</span>
+                            
+                            <!-- Row 14: INV QTY (Plain Black) - UOM displayed here too -->
+                            <span class="detail-caption">จำนวน:</span>
+                            <span class="detail-value">${data.inv_qty.toLocaleString()} ${data.uom}</span>
+                            
+                        </div>
+                        <!-- detail-right is changed to use padding for centering -->
+                        <div class="detail-right">
+                            <!-- Unique ID for each canvas -->
+                            <canvas id="qrcode-canvas-${tagIndex}" class="qrcode-canvas"></canvas>
+                            <p class="mt-2">TAG NO: ${data.tag_no}</p>
+                            <!-- MODIFIED: Show '-' if std_pack is 0 -->
+                            <p>STD PACK: ${data.std_pack > 0 ? data.std_pack.toLocaleString() : '-'}</p>
+                        </div>
+                    </div>
+
+                    <!-- Tag Footer -->
+                    <!--<div class="tag-footer">
+                        <span>Form: ${APP_CONST.FORM_NAME}</span>
+                        <span>${data.rev_info}</span>
+                    </div>-->
+                </div>
+            `;
+        }
+
+        /** สร้าง QR Code บน Canvas (FIX: กำหนด width/height ให้เป็นสี่เหลี่ยมจัตุรัสก่อนเรียก library) */
+        function generateQRCode(data, canvasId) {
+            // NOTE: QR Code data includes the date in the original YYYY-MM-DD format 
+            // for proper data reading by scanning devices/systems.
+            const qrCodeData = JSON.stringify(data);
+            const canvas = document.getElementById(canvasId);
+            
+            if (!canvas) {
+                console.warn(`Canvas ID ${canvasId} not found for QR code generation.`);
+                return;
+            }
+
+            // --- CRITICAL FIX: Force Canvas element's internal resolution to be square ---
+            // This ensures the QR code library draws a square pattern internally, 
+            // which the CSS then scales externally.
+            const squareSize = 200; 
+            canvas.width = squareSize;
+            canvas.height = squareSize;
+            // ------------------------------------------------------------------
+
+
+            try {
+                // Use a simple error correction level 'M' (medium)
+                QRCode.toCanvas(canvas, qrCodeData, {
+                    errorCorrectionLevel: 'M',
+                    margin: 1,
+                    scale: 3 // Small scale to ensure resolution
+                }, function (error) {
+                    if (error) console.error('QR Code Generation Error:', error);
+                });
+            } catch (e) {
+                console.error("QRCode library failed:", e);
+                // Optional: Fallback text if QR code generation fails
+                canvas.parentNode.innerHTML = `<p style="color:${THEME.danger};">QR Error</p>`;
+            }
+        }
+
+        // ----------------------------------------------------------------------
+        // 6. EXCEL IMPORT LOGIC (NEW - DYNAMIC SEARCH)
+        // ----------------------------------------------------------------------
+
+        /** Trigger file selector for Excel */
+        function triggerExcelImport() {
+            if (!importedData) {
+                return showAlert('Error', 'กรุณา Import PO ก่อนที่จะ Import Excel Detail');
+            }
+            // NEW: Check if lots already exist
+            if (tagDetails.length > 0) {
+                return showAlert('Warning', 'มีรายการ Lot อยู่แล้ว (กรุณา Clear Data หากต้องการ Import ใหม่)');
+            }
+
+            // Reset file input value to allow re-selection
+            document.getElementById('excel-file-selector').value = '';
+            document.getElementById('excel-file-selector').click();
+        }
+
+        /** Handle Excel File Selection and Parsing */
+        function handleExcelFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            showLoading();
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    // Assuming data is in the first sheet
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+
+                    processExcelData(worksheet);
+                    
+                    hideLoading();
+                } catch (error) {
+                    console.error("Excel Import Error:", error);
+                    hideLoading();
+                    showAlert('Import Error', 'ไม่สามารถอ่านไฟล์ Excel ได้: ' + error.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        /** Process parsed Excel data and populate UI */
+        function processExcelData(sheet) {
+            // Convert sheet to array of arrays for easier searching
+            // header: 1 means array of arrays e.g. [['A1', 'B1'], ['A2', 'B2']]
+            const rows = XLSX.utils.sheet_to_json(sheet, {header: 1, defval: ''});
+            
+            let foundHeaderRowIndex = -1;
+            let startDataRowIndex = -1;
+
+            // Variables to hold found data
+            let excelInvNo = '';
+            let excelInvDate = '';
+            let excelStockNo = '';
+            let excelPacking = '';
+            let excelInvoiceQty = 0; // NEW Variable
+            let excelCodeNo = ''; // NEW: For Code No / JPR Code
+
+            // 1. Scan for Headers (Header Section)
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                const colA = String(row[0] || '').trim().toUpperCase();
+                const colB = String(row[1] || '').trim(); // Value usually in Col B
+
+                if (colA.includes('INVOICE#') || colA.includes('INVOICE #')) {
+                    excelInvNo = colB.toUpperCase();
+                } else if (colA.includes('INVOICE DATE')) {
+                    // Handle Date: Checking the raw cell object from sheet is safer for dates
+                    // Use XLSX utility to encode cell address (e.g. {r:0, c:1} -> 'B1')
+                    const cellRef = XLSX.utils.encode_cell({r: i, c: 1}); // Column B is index 1
+                    const cell = sheet[cellRef];
+                    
+                    if (cell && cell.t === 'n') {
+                         const date = XLSX.SSF.parse_date_code(cell.v);
+                         const y = date.y;
+                         const m = String(date.m).padStart(2, '0');
+                         const d = String(date.d).padStart(2, '0');
+                         excelInvDate = `${y}-${m}-${d}`;
+                    } else {
+                         // Try to parse string if YYYY-MM-DD
+                         excelInvDate = colB;
+                    }
+                } else if (colA.includes('SPEC MATERIAL') || colA.includes('PRODUCTION')) {
+                    excelStockNo = colB.toUpperCase();
+                } else if (colA.includes('PACKING LIST')) {
+                    excelPacking = colB.toUpperCase();
+                } else if (colA.includes('INVOICE QTY')) { // NEW: Search for Invoice Qty
+                    // Remove commas if present and parse
+                    excelInvoiceQty = parseInt(colB.replace(/,/g, '')) || 0;
+                } else if (colA.includes('CODE NO') || colA.includes('JPR CODE')) { // NEW: Search for Code No
+                    excelCodeNo = colB.toUpperCase();
+                }
+                
+                // Detect Table Header for LOT#
+                // Check Column B or A for header
+                // Based on standard, Col B should be LOT# or LOT NO.
+                const colB_Header = String(row[1] || '').trim().toUpperCase();
+                if (colB_Header === 'LOT#' || colB_Header === 'LOT NO.' || colB_Header === 'LOT NO') {
+                    foundHeaderRowIndex = i;
+                    startDataRowIndex = i + 1; // Data starts next row
+                }
+            }
+
+            // Apply Header Data
+            if (excelInvNo) document.getElementById('input_invoice_number').value = excelInvNo;
+            if (excelInvDate) document.getElementById('input_invoice_date').value = excelInvDate;
+            if (isStockNoInput && excelStockNo) document.getElementById('input_stock_no').value = excelStockNo;
+            if (excelPacking) document.getElementById('input_packing_list').value = excelPacking;
+            if (excelCodeNo) document.getElementById('input_coil_no').value = excelCodeNo; // NEW: Apply Code No to Header Field (JPR Code)
+
+
+            // 2. LOT DETAILS MAPPING
+            const excelLots = [];
+            
+            if (startDataRowIndex !== -1) {
+                // Loop from the row AFTER the header until end or empty
+                for (let i = startDataRowIndex; i < rows.length; i++) {
+                    const row = rows[i];
+                    
+                    // Safety check: if row undefined, skip
+                    if (!row) continue;
+
+                    // Col B (Index 1) is Lot, Col C (Index 2) is Coil
+                    // NEW: Col D (Index 3) is Invoice Qty
+                    const lotVal = String(row[1] || '').trim().toUpperCase();
+                    
+                    // Stop if we hit an empty Lot number (assuming end of list)
+                    // But check if Row A has a sequence number, if so, maybe lot is missing but valid row?
+                    // Usually empty lot means stop.
+                    if (!lotVal) {
+                        // Check if row is totally empty to confirm break
+                        if (!row[0] && !row[2]) break;
+                        continue; // Skip line if just missing lot but has garbage
+                    }
+
+                    const coilVal = String(row[2] || '').trim().toUpperCase();
+                    
+                    // Parse Qty column (if exists, usually index 3/Col D)
+                    let rowQty = 0;
+                    if (row[3]) {
+                        rowQty = parseInt(String(row[3]).replace(/,/g, '')) || 0;
+                    }
+                    
+                    excelLots.push({
+                        lot: lotVal,
+                        coil: coilVal,
+                        qty: rowQty
+                    });
+                }
+            } else {
+                // If header not found via search, maybe alert user?
+                // Or fallback to a default row if really needed, but safer to alert.
+                if (!excelLots.length) {
+                     console.warn("Could not find 'LOT#' header row.");
+                }
+            }
+
+            // 3. AUTO-GENERATE TABLE based on Excel Rows
+            if (excelLots.length > 0) {
+                
+                // Get Current Std Pack
+                // Use a temporary variable for calculation, DO NOT change importedData.std_pack yet
+                let tempStdPack = importedData.std_pack || 0;
+                let calculatedShipQty = 0;
+                
+                // --- Validation Logic ---
+                
+                // A. Check Invoice Qty Total Match (if Header Qty exists)
+                const sumExcelLotQty = excelLots.reduce((acc, item) => acc + item.qty, 0);
+                
+                if (excelInvoiceQty > 0 && sumExcelLotQty !== excelInvoiceQty) {
+                     hideLoading();
+                     showAlert('Import Error', `ยอดรวม Invoice Qty ในรายการ (${sumExcelLotQty.toLocaleString()}) ไม่ตรงกับยอดรวมที่หัวกระดาษ (${excelInvoiceQty.toLocaleString()})`);
+                     return; // Stop import
+                }
+
+                // B. Check Remainder Lot Count (Only 1 allowed)
+                // Use tempStdPack for checking if not 0
+                if (tempStdPack > 0) {
+                    let remainderCount = 0;
+                    excelLots.forEach(item => {
+                        if (item.qty !== tempStdPack) {
+                            remainderCount++;
+                        }
+                    });
+
+                    if (remainderCount > 1) {
+                         hideLoading();
+                         showAlert('Import Error', `พบรายการที่เป็นเศษ (จำนวนไม่เท่ากับ Std Pack) มากกว่า 1 รายการ (${remainderCount} รายการ) กรุณาตรวจสอบไฟล์ Excel`);
+                         return; // Stop import
+                    }
+                }
+                
+                // --- Logic Update for StdPack=0 ---
+                // If Std Pack is 0, use excelInvoiceQty (Header) for calculation ONLY if present
+                if (tempStdPack === 0 && excelInvoiceQty > 0) {
+                    tempStdPack = excelInvoiceQty;
+                }
+
+                // Calculate Total Ship Qty
+                if (excelInvoiceQty > 0) {
+                    calculatedShipQty = excelInvoiceQty;
+                } else if (sumExcelLotQty > 0) {
+                    // Fallback: If no header qty but we have row quantities, use sum
+                    calculatedShipQty = sumExcelLotQty;
+                } else if (tempStdPack > 0) {
+                    // Fallback (Original Logic): Ship Qty = (Number of Lots) * (Std Pack)
+                    // Used if user didn't fill Qty column
+                    calculatedShipQty = excelLots.length * tempStdPack;
+                }
+
+                if (calculatedShipQty > 0) {
+                    // Set Ship Qty Input
+                    document.getElementById('input_ship_qty').value = calculatedShipQty;
+                    
+                    // --- Construct tagDetails DIRECTLY from Excel Data ---
+                    // Instead of calling confirmShipQty (which re-calculates/re-sorts), 
+                    // we build the state manually to preserve Excel order and values.
+                    
+                    tagDetails = excelLots.map((row, index) => ({
+                        item_no: index + 1,
+                        lot_no: row.lot,
+                        coil_no: row.coil,
+                        invoice_qty: row.qty > 0 ? row.qty : tempStdPack, // Use row qty if present, else std pack
+                        is_editable: false, // Excel import is fixed structure
+                        max_qty: tempStdPack
+                    }));
+                    
+                    // Set confirmed state
+                    confirmedShipQty = calculatedShipQty;
+                    
+                    // Update UI
+                    document.getElementById('ship_qty_input_container').classList.add('hidden');
+                    document.getElementById('display_ship_qty').textContent = confirmedShipQty.toLocaleString();
+                    document.getElementById('ship_qty_display_container').classList.remove('hidden');
+
+                    document.getElementById('detail-table-container').classList.remove('hidden');
+                    
+                    // Render Table
+                    renderDetailTable();
+                    updateFooter();
+
+                    // Fill Input Fields in Table
+                    setTimeout(() => {
+                        tagDetails.forEach((tag) => {
+                            // FIX: Item 1 has a special ID 'first-lot-input'
+                            let targetLotId = `lot_no_${tag.item_no}`;
+                            if (tag.item_no === 1) targetLotId = 'first-lot-input';
+
+                            const lotInput = document.getElementById(targetLotId);
+                            if (lotInput) lotInput.value = tag.lot_no;
+                            
+                            const coilInput = document.getElementById(`coil_no_${tag.item_no}`);
+                            if (coilInput) coilInput.value = tag.coil_no;
+                            
+                            // Also ensure Qty input is updated (if rendered as input)
+                            const qtyInput = document.getElementById(`inv_qty_${tag.item_no}`);
+                            if (qtyInput) qtyInput.value = tag.invoice_qty;
+                        });
+                        
+                        checkPrintReadiness();
+                    }, 50);
+
+                    showAlert('Import Success', `นำเข้าข้อมูลจาก Excel สำเร็จ: ${excelLots.length} รายการ`, null, 'success');
+                } else {
+                    showAlert('Warning', 'ไม่สามารถคำนวณยอด Ship Qty ได้ (Std Pack=0 และไม่มีข้อมูล Invoice Qty)');
+                }
+
+            } else {
+                 if (startDataRowIndex === -1) {
+                     showAlert('Import Warning', 'ไม่พบหัวตาราง "LOT#" ในไฟล์ Excel กรุณาตรวจสอบรูปแบบไฟล์');
+                 } else {
+                     showAlert('Import Warning', 'ไม่พบข้อมูลรายการ Lot ในไฟล์ Excel');
+                 }
+            }
+        }
+
+
+        // ----------------------------------------------------------------------
+        // 5. Global Event Listeners (Enter Key for Navigation, F10 for Print)
+        // ----------------------------------------------------------------------
+
+        document.addEventListener('keydown', function(e) {
+            // Handle Enter key for Input Navigation
+            if (e.key === 'Enter') {
+                // If an alert/confirm modal is open, trigger its OK button
+                if (!document.getElementById('alert-modal').classList.contains('hidden')) {
+                    e.preventDefault();
+                    document.getElementById('alert-ok-btn').click();
+                    return;
+                }
+                if (!document.getElementById('confirm-modal').classList.contains('hidden')) {
+                    e.preventDefault();
+                    document.getElementById('confirm-ok-btn').click();
+                    return;
+                }
+                
+                // If normal input is focused, move to the next field using data-next attribute
+                const focusedElement = document.activeElement;
+                
+                // Robust check to prevent errors
+                const nextId = (focusedElement && focusedElement.dataset) ? focusedElement.dataset.next : null; 
+
+                if (nextId) {
+                    e.preventDefault();
+                    if (nextId === 'btn-print-tag') {
+                        // V36: Before triggering print, check if the button is enabled
+                        if (!document.getElementById(nextId).disabled) {
+                            document.getElementById(nextId).click();
+                        }
+                    } else if (nextId === 'btn-confirm-qty') { // NEW
+                        document.getElementById(nextId).click();
+                    } else {
+                        const nextElement = document.getElementById(nextId);
+                        if (nextElement) {
+                            nextElement.focus();
+                            // V36: For text inputs, select all text on focus for quick overwrite
+                            if (nextElement.type === 'text' || nextElement.type === 'number') { // NEW: Added number
+                                nextElement.select();
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Handle F10 for Print Tag
+            if (e.key === 'F10') {
+                e.preventDefault();
+                // Only click if button is not disabled
+                if (!document.getElementById('btn-print-tag').disabled) {
+                     document.getElementById('btn-print-tag').click();
+                }
+            }
+        });
+
+        // V36: Setup event listeners for the fixed header inputs to trigger checkPrintReadiness
+        document.addEventListener('DOMContentLoaded', () => {
+            updateFooter();
+            
+            // Listen to changes on header inputs to enable/disable the print button
+            INPUT_FIELDS.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    // Use change and input events
+                    el.addEventListener('input', checkPrintReadiness);
+                    el.addEventListener('change', checkPrintReadiness);
+                }
+            });
+            // NEW: Add listener for the conditional header coil_no
+            document.getElementById('input_coil_no').addEventListener('input', checkPrintReadiness);
+            
+            // checkPrintReadiness will also be called inside updateUI() and lotInput.oninput
+
+            // If the dynamic stock_no input exists, we must listen to it too.
+            // This is handled dynamically inside updateUI.
+        });
+
+    </script>
+</body>
+</html>

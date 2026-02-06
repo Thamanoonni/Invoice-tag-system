@@ -1032,6 +1032,7 @@
                 currentCaptions.stock_no = "Spec Material:";
             }
             
+            
             // Update the display labels
             document.getElementById('label_stock_no').textContent = currentCaptions.stock_no;
             document.getElementById('label_coil_no').textContent = currentCaptions.coil_no; // For header
@@ -1051,8 +1052,7 @@
 
             // NEW: Set conditional COIL NO flag
             // FIX: Include PAINTING as a type that uses HEADER Coil No (not Per-Lot)
-            //isPerLotCoilNo = !(poType === 'PART' || poType === 'PART_BUY' || poType === 'PAINTING');
-            isPerLotCoilNo = !(poType === 'PAINTING' || poType === 'PAINTING');
+            isPerLotCoilNo = !(poType === 'PAINTING');
 
             // NEW: Show/Hide COIL NO sections
             const headerCoilContainer = document.getElementById('header_coil_no_container');
@@ -1065,22 +1065,8 @@
             
             let rawStockNo = (importedData.stock_no || '').trim();
             
-            // *** CHANGE START ***
-            // Special handling for PAINTING where stock_no JSON carries CoilLot data
-            // but the Stock/Production UI must be an empty input.
-            let headerCoilValue = '';
-            
-            if (poType === 'PAINTING') {
-                // Save the JSON value for the Coil input
-                headerCoilValue = rawStockNo;
-                
-                // Clear rawStockNo so the logic below generates an empty Input for "Production"
-                rawStockNo = ''; 
-                isStockNoInput = true;
-            } else {
-                isStockNoInput = (rawStockNo === '');
-            }
-            // *** CHANGE END ***
+            // Check stock_no directly. For PAINTING, user said it will be empty in JSON, so rawStockNo is empty string.
+            isStockNoInput = (rawStockNo === '');
 
             if (isStockNoInput) {
                 // If stock_no is blank, show input field
@@ -1112,9 +1098,9 @@
                 document.getElementById('input_invoice_number').focus();
             }
             
-            // *** SPECIAL LOGIC FOR PAINTING: Populate and Disable Coil/Lot No ***
+            // *** SPECIAL LOGIC FOR PAINTING: Populate from new 'coil_lot' field and Disable ***
             if (poType === 'PAINTING') {
-                coilInput.value = headerCoilValue;
+                coilInput.value = (importedData.coil_lot || '').trim(); // Use new field
                 coilInput.disabled = true;
                 coilInput.classList.add('bg-gray-100', 'cursor-not-allowed'); // Gray out
             } else {

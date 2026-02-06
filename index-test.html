@@ -1032,13 +1032,6 @@
                 currentCaptions.stock_no = "Spec Material:";
             }
             
-            //} else if (poType === 'PART') {
-            //    currentCaptions.stock_no = "Production:";
-            //    currentCaptions.coil_no = "JPR CODE:";
-            //} else if (poType === 'PART_BUY') {
-            //    currentCaptions.stock_no = "Spec Material:";
-            //}
-            
             // Update the display labels
             document.getElementById('label_stock_no').textContent = currentCaptions.stock_no;
             document.getElementById('label_coil_no').textContent = currentCaptions.coil_no; // For header
@@ -1066,15 +1059,69 @@
             const tableCoilHeader = document.getElementById('th-coil-no');
             const packingListInput = document.getElementById('input_packing_list');
             
+            // 2. Handle Dynamic Stock# Input
+            const stockNoContainer = document.getElementById('stock_no_container');
+            stockNoContainer.innerHTML = ''; // Clear previous content
+            
+            let rawStockNo = (importedData.stock_no || '').trim();
+            
+            // *** CHANGE START ***
+            // Special handling for PAINTING where stock_no JSON carries CoilLot data
+            // but the Stock/Production UI must be an empty input.
+            let headerCoilValue = '';
+            
+            if (poType === 'PAINTING') {
+                // Save the JSON value for the Coil input
+                headerCoilValue = rawStockNo;
+                
+                // Clear rawStockNo so the logic below generates an empty Input for "Production"
+                rawStockNo = ''; 
+                isStockNoInput = true;
+            } else {
+                isStockNoInput = (rawStockNo === '');
+            }
+            // *** CHANGE END ***
+
+            if (isStockNoInput) {
+                // If stock_no is blank, show input field
+                const stockInput = document.createElement('input');
+                stockInput.type = 'text';
+                stockInput.id = 'input_stock_no'; // New ID for the input field
+                // Combine existing classes with focus style and custom class for CSS focus fix
+                stockInput.className = 'stock-input-field w-full border rounded-lg p-2 focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition text-black font-normal';
+                stockInput.placeholder = `กรอก ${currentCaptions.stock_no.replace(':', '')}`;
+                stockInput.value = ''; 
+                // V36: Uppercase and data tracking
+                stockInput.oninput = function() { this.value = this.value.toUpperCase(); checkPrintReadiness(); };
+                // Default next focus (unless changed below)
+                stockInput.dataset.next = 'input_invoice_number'; 
+                stockNoContainer.appendChild(stockInput);
+                
+                // Focus on this field (First in sequence)
+                setTimeout(() => stockInput.focus(), 100); 
+                
+            } else {
+                // If stock_no exists, show read-only paragraph
+                const stockP = document.createElement('p');
+                stockP.id = 'stock_no';
+                stockP.className = 'text-black font-normal';
+                stockP.textContent = rawStockNo;
+                stockNoContainer.appendChild(stockP);
+                
+                // Default focus to invoice number if stock_no is read-only
+                document.getElementById('input_invoice_number').focus();
+            }
+            
             // *** SPECIAL LOGIC FOR PAINTING: Populate and Disable Coil/Lot No ***
             if (poType === 'PAINTING') {
-                coilInput.value = (importedData.stock_no || '').trim();
+                coilInput.value = headerCoilValue;
                 coilInput.disabled = true;
                 coilInput.classList.add('bg-gray-100', 'cursor-not-allowed'); // Gray out
             } else {
-                // Reset for others
+                // Reset for others (unless cleared by isPerLotCoilNo logic below)
                 coilInput.disabled = false;
                 coilInput.classList.remove('bg-gray-100', 'cursor-not-allowed');
+                // Only clear if NOT Painting logic (handled below)
             }
 
             if (isPerLotCoilNo) {
@@ -1093,48 +1140,10 @@
                 // Ensure header coil_no points to ship_qty
                 coilInput.dataset.next = 'input_ship_qty';
 
-                // Only clear if NOT Painting (since Painting sets it specific value)
+                // Only clear if NOT Painting (since Painting sets it specific value above)
                 if (poType !== 'PAINTING') {
                     coilInput.value = '';
                 }
-            }
-
-
-            // 2. Handle Dynamic Stock# Input
-            const stockNoContainer = document.getElementById('stock_no_container');
-            stockNoContainer.innerHTML = ''; // Clear previous content
-            
-            const rawStockNo = (importedData.stock_no || '').trim();
-            isStockNoInput = (rawStockNo === '');
-            const defaultNextFocus = 'input_invoice_number'; // Next focus if stock_no is read-only
-
-            if (isStockNoInput) {
-                // If stock_no is blank, show input field
-                const stockInput = document.createElement('input');
-                stockInput.type = 'text';
-                stockInput.id = 'input_stock_no'; // New ID for the input field
-                // Combine existing classes with focus style and custom class for CSS focus fix
-                stockInput.className = 'stock-input-field w-full border rounded-lg p-2 focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition text-black font-normal';
-                stockInput.placeholder = `กรอก ${currentCaptions.stock_no.replace(':', '')}`;
-                stockInput.value = ''; 
-                // V36: Uppercase and data tracking
-                stockInput.oninput = function() { this.value = this.value.toUpperCase(); checkPrintReadiness(); };
-                stockInput.dataset.next = defaultNextFocus; 
-                stockNoContainer.appendChild(stockInput);
-                
-                // Focus on this field (First in sequence)
-                setTimeout(() => stockInput.focus(), 100); 
-                
-            } else {
-                // If stock_no exists, show read-only paragraph
-                const stockP = document.createElement('p');
-                stockP.id = 'stock_no';
-                stockP.className = 'text-black font-normal';
-                stockP.textContent = rawStockNo;
-                stockNoContainer.appendChild(stockP);
-                
-                // Default focus to invoice number if stock_no is read-only
-                document.getElementById(defaultNextFocus).focus();
             }
             
             // 3. Update Header Display (Read-Only)

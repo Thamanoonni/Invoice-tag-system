@@ -1854,6 +1854,7 @@
         }
 
         /** Process parsed Excel data and populate UI */
+/*
         function processExcelData(sheet) {
             // Convert sheet to array of arrays for easier searching
             // header: 1 means array of arrays e.g. [['A1', 'B1'], ['A2', 'B2']]
@@ -2088,6 +2089,251 @@
                  }
             }
         }
+*/
+        function processExcelData(sheet) {
+            // Convert sheet to array of arrays for easier searching
+            // header: 1 means array of arrays e.g. [['A1', 'B1'], ['A2', 'B2']]
+            const rows = XLSX.utils.sheet_to_json(sheet, {header: 1, defval: ''});
+            
+            let foundHeaderRowIndex = -1;
+            let startDataRowIndex = -1;
+
+            // Variables to hold found data
+            let excelInvNo = '';
+            let excelInvDate = '';
+            let excelStockNo = '';
+            let excelPacking = '';
+            let excelInvoiceQty = 0; // NEW Variable
+            let excelCodeNo = ''; // NEW: For Code No / JPR Code
+
+            // 1. Scan for Headers (Header Section)
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                const colA = String(row[0] || '').trim().toUpperCase();
+                const colB = String(row[1] || '').trim(); // Value usually in Col B
+
+                if (colA.includes('INVOICE#') || colA.includes('INVOICE #')) {
+                    excelInvNo = colB.toUpperCase();
+                } else if (colA.includes('INVOICE DATE')) {
+                    // Handle Date: Checking the raw cell object from sheet is safer for dates
+                    // Use XLSX utility to encode cell address (e.g. {r:0, c:1} -> 'B1')
+                    const cellRef = XLSX.utils.encode_cell({r: i, c: 1}); // Column B is index 1
+                    const cell = sheet[cellRef];
+                    
+                    if (cell && cell.t === 'n') {
+                         const date = XLSX.SSF.parse_date_code(cell.v);
+                         const y = date.y;
+                         const m = String(date.m).padStart(2, '0');
+                         const d = String(date.d).padStart(2, '0');
+                         excelInvDate = `${y}-${m}-${d}`;
+                    } else {
+                         // Try to parse string if YYYY-MM-DD
+                         // Handle string date "13/2/2026" -> "2026-02-13"
+                        const parts = colB.split('/');
+                        if (parts.length === 3) {
+                            const d = parts[0].padStart(2, '0');
+                            const m = parts[1].padStart(2, '0');
+                            const y = parts[2];
+                            excelInvDate = `${y}-${m}-${d}`;
+                        } else {
+                            excelInvDate = colB; // Fallback
+                        }
+                    }
+                } else if (colA.includes('SPEC MATERIAL') || colA.includes('PRODUCTION')) {
+                    excelStockNo = colB.toUpperCase();
+                } else if (colA.includes('PACKING LIST')) {
+                    excelPacking = colB.toUpperCase();
+                } else if (colA.includes('INVOICE QTY')) { // NEW: Search for Invoice Qty
+                    // Remove commas if present and parse
+                    excelInvoiceQty = parseInt(colB.replace(/,/g, '')) || 0;
+                } else if (colA.includes('CODE NO') || colA.includes('JPR CODE')) { // NEW: Search for Code No
+                    excelCodeNo = colB.toUpperCase();
+                }
+                
+                // Detect Table Header for LOT#
+                // Check Column B or A for header
+                // Based on standard, Col B should be LOT# or LOT NO.
+                const colB_Header = String(row[1] || '').trim().toUpperCase();
+                if (colB_Header === 'LOT#' || colB_Header === 'LOT NO.' || colB_Header === 'LOT NO') {
+                    foundHeaderRowIndex = i;
+                    startDataRowIndex = i + 1; // Data starts next row
+                }
+            }
+
+            // Apply Header Data
+            if (excelInvNo) document.getElementById('input_invoice_number').value = excelInvNo;
+            if (excelInvDate) document.getElementById('input_invoice_date').value = excelInvDate;
+            if (isStockNoInput && excelStockNo) document.getElementById('input_stock_no').value = excelStockNo;
+            if (excelPacking) document.getElementById('input_packing_list').value = excelPacking;
+            if (excelCodeNo) document.getElementById('input_coil_no').value = excelCodeNo; // NEW: Apply Code No to Header Field (JPR Code)
+
+
+            // 2. LOT DETAILS MAPPING
+            const excelLots = [];
+            
+            if (startDataRowIndex !== -1) {
+                // Loop from the row AFTER the header until end or empty
+                for (let i = startDataRowIndex; i < rows.length; i++) {
+                    const row = rows[i];
+                    
+                    // Safety check: if row undefined, skip
+                    if (!row) continue;
+
+                    // Col B (Index 1) is Lot, Col C (Index 2) is Coil
+                    // NEW: Col D (Index 3) is Invoice Qty
+                    const lotVal = String(row[1] || '').trim().toUpperCase();
+                    
+                    // Stop if we hit an empty Lot number (assuming end of list)
+                    // But check if Row A has a sequence number, if so, maybe lot is missing but valid row?
+                    // Usually empty lot means stop.
+                    if (!lotVal) {
+                        // Check if row is totally empty to confirm break
+                        if (!row[0] && !row[2]) break;
+                        continue; // Skip line if just missing lot but has garbage
+                    }
+
+                    const coilVal = String(row[2] || '').trim().toUpperCase();
+                    
+                    // Parse Qty column (if exists, usually index 3/Col D)
+                    let rowQty = 0;
+                    if (row[3]) {
+                        rowQty = parseInt(String(row[3]).replace(/,/g, '')) || 0;
+                    }
+                    
+                    excelLots.push({
+                        lot: lotVal,
+                        coil: coilVal,
+                        qty: rowQty
+                    });
+                }
+            } else {
+                // If header not found via search, maybe alert user?
+                // Or fallback to a default row if really needed, but safer to alert.
+                if (!excelLots.length) {
+                     console.warn("Could not find 'LOT#' header row.");
+                }
+            }
+
+            // 3. AUTO-GENERATE TABLE based on Excel Rows
+            if (excelLots.length > 0) {
+                
+                // Get Current Std Pack
+                // Use a temporary variable for calculation, DO NOT change importedData.std_pack yet
+                let tempStdPack = importedData.std_pack || 0;
+                let calculatedShipQty = 0;
+                
+                // --- Validation Logic ---
+                
+                // A. Check Invoice Qty Total Match (if Header Qty exists)
+                const sumExcelLotQty = excelLots.reduce((acc, item) => acc + item.qty, 0);
+                
+                if (excelInvoiceQty > 0 && sumExcelLotQty !== excelInvoiceQty) {
+                     hideLoading();
+                     showAlert('Import Error', `ยอดรวม Invoice Qty ในรายการ (${sumExcelLotQty.toLocaleString()}) ไม่ตรงกับยอดรวมที่หัวกระดาษ (${excelInvoiceQty.toLocaleString()})`);
+                     return; // Stop import
+                }
+
+                // B. Check Remainder Lot Count (Only 1 allowed)
+                // Use tempStdPack for checking if not 0
+                if (tempStdPack > 0) {
+                    let remainderCount = 0;
+                    excelLots.forEach(item => {
+                        if (item.qty !== tempStdPack) {
+                            remainderCount++;
+                        }
+                    });
+
+                    if (remainderCount > 1) {
+                         hideLoading();
+                         showAlert('Import Error', `พบรายการที่เป็นเศษ (จำนวนไม่เท่ากับ Std Pack) มากกว่า 1 รายการ (${remainderCount} รายการ) กรุณาตรวจสอบไฟล์ Excel`);
+                         return; // Stop import
+                    }
+                }
+                
+                // --- Logic Update for StdPack=0 ---
+                // If Std Pack is 0, use excelInvoiceQty (Header) for calculation ONLY if present
+                if (tempStdPack === 0 && excelInvoiceQty > 0) {
+                    tempStdPack = excelInvoiceQty;
+                }
+
+                // Calculate Total Ship Qty
+                if (excelInvoiceQty > 0) {
+                    calculatedShipQty = excelInvoiceQty;
+                } else if (sumExcelLotQty > 0) {
+                    // Fallback: If no header qty but we have row quantities, use sum
+                    calculatedShipQty = sumExcelLotQty;
+                } else if (tempStdPack > 0) {
+                    // Fallback (Original Logic): Ship Qty = (Number of Lots) * (Std Pack)
+                    // Used if user didn't fill Qty column
+                    calculatedShipQty = excelLots.length * tempStdPack;
+                }
+
+                if (calculatedShipQty > 0) {
+                    // Set Ship Qty Input
+                    document.getElementById('input_ship_qty').value = calculatedShipQty;
+                    
+                    // --- Construct tagDetails DIRECTLY from Excel Data ---
+                    // Instead of calling confirmShipQty (which re-calculates/re-sorts), 
+                    // we build the state manually to preserve Excel order and values.
+                    
+                    tagDetails = excelLots.map((row, index) => ({
+                        item_no: index + 1,
+                        lot_no: row.lot,
+                        coil_no: row.coil,
+                        invoice_qty: row.qty > 0 ? row.qty : tempStdPack, // Use row qty if present, else std pack
+                        is_editable: false, // Excel import is fixed structure
+                        max_qty: tempStdPack
+                    }));
+                    
+                    // Set confirmed state
+                    confirmedShipQty = calculatedShipQty;
+                    
+                    // Update UI
+                    document.getElementById('ship_qty_input_container').classList.add('hidden');
+                    document.getElementById('display_ship_qty').textContent = confirmedShipQty.toLocaleString();
+                    document.getElementById('ship_qty_display_container').classList.remove('hidden');
+
+                    document.getElementById('detail-table-container').classList.remove('hidden');
+                    
+                    // Render Table
+                    renderDetailTable();
+                    updateFooter();
+
+                    // Fill Input Fields in Table
+                    setTimeout(() => {
+                        tagDetails.forEach((tag) => {
+                            // FIX: Item 1 has a special ID 'first-lot-input'
+                            let targetLotId = `lot_no_${tag.item_no}`;
+                            if (tag.item_no === 1) targetLotId = 'first-lot-input';
+
+                            const lotInput = document.getElementById(targetLotId);
+                            if (lotInput) lotInput.value = tag.lot_no;
+                            
+                            const coilInput = document.getElementById(`coil_no_${tag.item_no}`);
+                            if (coilInput) coilInput.value = tag.coil_no;
+                            
+                            // Also ensure Qty input is updated (if rendered as input)
+                            const qtyInput = document.getElementById(`inv_qty_${tag.item_no}`);
+                            if (qtyInput) qtyInput.value = tag.invoice_qty;
+                        });
+                        
+                        checkPrintReadiness();
+                    }, 50);
+
+                    showAlert('Import Success', `นำเข้าข้อมูลจาก Excel สำเร็จ: ${excelLots.length} รายการ`, null, 'success');
+                } else {
+                    showAlert('Warning', 'ไม่สามารถคำนวณยอด Ship Qty ได้ (Std Pack=0 และไม่มีข้อมูล Invoice Qty)');
+                }
+
+            } else {
+                 if (startDataRowIndex === -1) {
+                     showAlert('Import Warning', 'ไม่พบหัวตาราง "LOT#" ในไฟล์ Excel กรุณาตรวจสอบรูปแบบไฟล์');
+                 } else {
+                     showAlert('Import Warning', 'ไม่พบข้อมูลรายการ Lot ในไฟล์ Excel');
+                 }
+            }
+        }
+
 
 
         // ----------------------------------------------------------------------
